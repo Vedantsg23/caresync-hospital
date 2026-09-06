@@ -14,7 +14,7 @@ never have to ask *"where is the information?"*
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.44-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/tests-130_passing-3fb950)](#testing)
+[![Tests](https://img.shields.io/badge/tests-135_passing-3fb950)](#testing)
 
 </div>
 
@@ -462,10 +462,10 @@ report, and none of them can read the audit trail.
 
 ## Testing
 
-**130 tests, all passing.**
+**135 tests, all passing.**
 
 ```bash
-npm run test:unit          # 49 tests, no database required
+npm run test:unit          # 54 tests, no database required
 createdb caresync_test     # then point .env.test at it
 npm run test:integration   # 81 tests against real PostgreSQL
 ```
@@ -479,6 +479,7 @@ and seed it themselves.
 | `unit/referral-state-machine` | Every legal and illegal transition, terminal states |
 | `unit/clinical-scoring` | Early-warning scoring, result flagging, the allergy interlock |
 | `unit/validation` | Request schemas and the password policy |
+| `unit/env` | Configuration validation reports the offending variable names, never their values |
 | `integration/referral-workflow` | **The acceptance criterion** — the full doctor → specialist → doctor loop, 26 assertions |
 | `integration/patient-access` | Who may open a record, search leakage, denial auditing, grants |
 | `integration/clinical-workflows` | Vitals, notes, pathology, radiology, pharmacy, admissions, administration, AI, auth |
@@ -621,6 +622,33 @@ Use a **pooled** connection string on serverless (Supabase Session Pooler, or Ne
 `-pooler` endpoint) and put the direct URL in `DIRECT_URL` for migrations.
 
 To reset the demo data later, set `SEED_FORCE=true`, redeploy once, then remove it again.
+
+### If sign-in fails after deploying
+
+Call `/api/health` first. It answers the two questions that account for nearly every
+failed deployment:
+
+```bash
+curl https://<your-app>.vercel.app/api/health
+```
+
+```json
+{ "success": true, "data": { "status": "ok", "database": "connected", "configuration": "ok" } }
+```
+
+A `503` names the problem rather than hiding it:
+
+| What it says | What happened |
+| --- | --- |
+| `"configuration": ["AUTH_SECRET"]` | That variable is missing or too short. Add it, then **redeploy**. |
+| `"database": "unreachable"` | `DATABASE_URL` is wrong, or the database is asleep or firewalled. |
+
+**Vercel applies environment variables at build time.** Adding one to project settings
+changes nothing until a new build runs — the old deployment keeps the old values, so
+sign-in keeps failing and the page keeps serving stale `NEXT_PUBLIC_*` values. After
+adding or editing variables, go to **Deployments → ⋯ → Redeploy**.
+
+The variable *names* are reported; the values never are.
 
 ### Anywhere else
 

@@ -29,17 +29,56 @@ const schema = z.object({
 
 export type Env = z.infer<typeof schema>;
 
+/**
+ * Thrown when the process is misconfigured, carrying the *names* of the
+ * offending variables — never their values.
+ *
+ * This distinction is the whole point of the class. A misconfigured deployment
+ * previously surfaced as "An unexpected error occurred", identical to a genuine
+ * crash, because the generic handler could not tell the two apart: sign-in
+ * failed with a 500 for every password, and nothing said why. The names are
+ * already public in `.env.example`; the values are the secret. So the names
+ * travel to the operator and the values never leave the process.
+ */
+export class EnvConfigError extends Error {
+  readonly variables: string[];
+
+  constructor(variables: string[], detail: string) {
+    super(`Invalid environment configuration:\n${detail}`);
+    this.name = 'EnvConfigError';
+    this.variables = variables;
+  }
+}
+
 let cached: Env | null = null;
 
 export function getEnv(): Env {
   if (cached) return cached;
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
-    const details = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
-    throw new Error(`Invalid environment configuration:\n${details}\n\nCopy .env.example to .env and fill in the values.`);
+    const variables = [...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? '(root)')))];
+    const detail = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n')
+      + '\n\nCopy .env.example to .env and fill in the values. On Vercel, set them in\n'
+      + 'Settings -> Environment Variables and then REDEPLOY: variables are applied at\n'
+      + 'build time, so adding one changes nothing until a new build runs.';
+    throw new EnvConfigError(variables, detail);
   }
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * Non-throwing form, for the health endpoint. Reports whether the process is
+ * configured and which variables are wrong, without ever reading a value back.
+ */
+export function envStatus(): { ok: true } | { ok: false; invalid: string[] } {
+  try {
+    getEnv();
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof EnvConfigError) return { ok: false, invalid: err.variables };
+    return { ok: false, invalid: ['(unknown)'] };
+  }
 }
 
 export const isProduction = () => process.env.NODE_ENV === 'production';

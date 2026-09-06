@@ -96,6 +96,7 @@ Clients should branch on `error.code`, not on the message.
 | `RATE_LIMITED` | 429 | Too many requests. `details.retryAfterSeconds` says how long to wait. |
 | `ACCOUNT_LOCKED` | 429 | Too many failed sign-ins for this account. |
 | `INTERNAL_ERROR` | 500 | Unhandled server fault. Logged server-side; no internals are returned. |
+| `CONFIGURATION_ERROR` | 503 | The deployment is missing required environment variables. `details.variables` names them; values are never returned. |
 | `SERVICE_UNAVAILABLE` | 503 | Database unreachable (only `/api/health` returns this deliberately). |
 
 Postgres errors are translated rather than leaked: `23505` → `DUPLICATE_RESOURCE`,
@@ -948,11 +949,33 @@ the interesting security events are the ones that failed.
 | --- | --- | --- | --- |
 | `GET` | `/api/departments` | authenticated | For pickers. |
 | `GET` | `/api/staff` | authenticated | Directory, no sensitive fields. |
-| `GET` | `/api/health` | *public* | Liveness and database reachability. |
+| `GET` | `/api/health` | *public* | Liveness, database reachability and configuration validity. |
 
-`GET /api/health` returns `{"success":true,"data":{"status":"ok","database":"connected","time":"…"}}`
-or `503 SERVICE_UNAVAILABLE`. It deliberately reveals nothing else — no version, no host,
-no schema — because an unauthenticated endpoint is not the place to describe the system.
+`GET /api/health` is the first thing to call when a deployment misbehaves.
+
+```json
+{ "success": true, "data": {
+  "status": "ok", "database": "connected", "configuration": "ok",
+  "time": "2026-09-06T18:11:52.659Z" } }
+```
+
+A `503` says which half is broken:
+
+```json
+{ "success": false, "error": {
+  "code": "CONFIGURATION_ERROR",
+  "message": "Missing or invalid environment variables: AUTH_SECRET. Set them and redeploy.",
+  "details": { "database": "connected", "configuration": ["AUTH_SECRET"] } } }
+```
+
+**Names, never values.** The variable names are already public in `.env.example`, so
+reporting them costs nothing and saves a great deal: a missing `AUTH_SECRET` otherwise
+surfaces only as a generic `500` on sign-in, identical for every password anyone types,
+with nothing anywhere to say why. Any endpoint that reaches the environment validator
+returns the same `CONFIGURATION_ERROR` rather than an opaque `INTERNAL_ERROR`.
+
+The endpoint reveals nothing further — no version, no host, no schema — because an
+unauthenticated endpoint is not the place to describe the system.
 
 ---
 

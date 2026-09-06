@@ -2,6 +2,7 @@ import '@/server/only';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ZodError, type ZodSchema } from 'zod';
 import { AppError } from './errors';
+import { EnvConfigError } from '@/lib/env';
 
 export type ApiSuccess<T> = { success: true; data: T; meta?: Record<string, unknown> };
 export type ApiFailure = { success: false; error: { code: string; message: string; details?: unknown } };
@@ -23,6 +24,19 @@ export function fail(code: string, message: string, status: number, details?: un
 export function toErrorResponse(err: unknown) {
   if (err instanceof AppError) {
     return fail(err.code, err.message, err.status, err.details);
+  }
+  // A misconfigured deployment is an operator problem, not a bug, and saying so
+  // is worth more than the generic 500 it used to hide behind. The variable
+  // NAMES are already public in .env.example; the values never leave the process.
+  if (err instanceof EnvConfigError) {
+    console.error('[api] configuration error:', err.message);
+    return fail(
+      'CONFIGURATION_ERROR',
+      `The server is missing required configuration: ${err.variables.join(', ')}. `
+      + 'Set these environment variables and redeploy.',
+      503,
+      { variables: err.variables },
+    );
   }
   if (err instanceof ZodError) {
     return fail('VALIDATION_ERROR', 'The submitted data is not valid.', 422, formatZodIssues(err));
