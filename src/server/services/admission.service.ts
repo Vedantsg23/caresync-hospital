@@ -107,7 +107,7 @@ export async function createAdmission(user: AuthUser, input: CreateAdmissionInpu
       userId: input.attendingDoctorId,
       role: 'ATTENDING',
       assignedById: user.id,
-    });
+    }).onConflictDoNothing();
 
     await tx.insert(encounters).values({
       patientId: input.patientId,

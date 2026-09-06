@@ -303,7 +303,7 @@ export async function createPatient(user: AuthUser, input: CreatePatientInput) {
       userId: user.id,
       role: 'CONSULTING',
       assignedById: user.id,
-    });
+    }).onConflictDoNothing();
 
     return patient!;
   });

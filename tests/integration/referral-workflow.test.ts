@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db, pool } from '@/server/db/client';
 import {
   referrals, referralResponses, notifications, timelineEvents, auditLogs,
@@ -376,5 +376,30 @@ describe('doctor to specialist referral, end to end', () => {
   it('still allows the referring doctor to reach the patient after completion', async () => {
     await expect(assertPatientAccess(doctor, patientId)).resolves.toBeUndefined();
     await expect(assertPatientAccess(specialist, patientId)).resolves.toBeUndefined();
+  });
+
+  it('does not duplicate the specialist on the care team across referrals', async () => {
+    const activeRows = () => db.select().from(careTeamMembers).where(and(
+      eq(careTeamMembers.patientId, patientId),
+      eq(careTeamMembers.userId, specialist.id),
+      isNull(careTeamMembers.removedAt),
+    ));
+
+    // The specialist joined the team by accepting the referral above.
+    expect(await activeRows()).toHaveLength(1);
+
+    // A second referral to the same specialist, for the same patient, is a
+    // normal thing to happen on a ward — and must not put them on the chart
+    // twice. A duplicated name in the care team reads as a broken system.
+    const second = await createReferral(doctor, {
+      patientId,
+      specialistDoctorId: specialist.id,
+      reason: 'Second opinion on rate control',
+      clinicalSummary: 'Rate remains poorly controlled 24 hours after the initial review.',
+      priority: 'ROUTINE',
+    });
+    await acceptReferral(specialist, second.id);
+
+    expect(await activeRows(), 'one active care-team membership per clinician').toHaveLength(1);
   });
 });

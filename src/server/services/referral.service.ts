@@ -355,13 +355,16 @@ export async function acceptReferral(user: AuthUser, referralId: string) {
       grantedById: referral.referringDoctorId,
     });
 
+    // A specialist already on this patient's care team (a second referral, say)
+    // must not appear twice on the chart. `care_team_one_active_per_patient_user`
+    // makes that impossible; this keeps the accept idempotent rather than failing.
     await tx.insert(careTeamMembers).values({
       patientId: referral.patientId,
       admissionId: referral.admissionId,
       userId: user.id,
       role: 'SPECIALIST',
       assignedById: referral.referringDoctorId,
-    });
+    }).onConflictDoNothing();
 
     await tx.insert(encounters).values({
       patientId: referral.patientId,

@@ -790,7 +790,9 @@ changed.
 
 **Query** — `notificationQuerySchema`: `unreadOnly` (`"true"` | `"false"`),
 `limit` (1–100), `cursor` (opaque).
-**200** — `data.items[]` plus `data.unreadCount`; `meta.nextCursor` when more remain.
+**200** — `data` is the notification array itself; `meta.unreadCount` carries the badge
+count and `meta.nextCursor` is present when more remain. Cursor-paginated collections all
+follow this shape: the rows in `data`, the pagination in `meta`.
 
 </details>
 
@@ -921,12 +923,12 @@ cost 12 and never returned by any endpoint.
 `entityType?` (≤ 80), `limit?` (1–200), `cursor?`.
 
 ```json
-{ "success": true, "data": { "items": [{
+{ "success": true, "data": [{
   "id": "…", "action": "REFERRAL_RESPONDED", "outcome": "SUCCESS",
   "userId": "…", "userName": "Dr. Priya Mehta", "userRole": "SENIOR_DOCTOR",
   "patientId": "…", "entityType": "referral", "entityId": "…",
   "ipAddress": "10.0.0.9", "userAgent": "Mozilla/5.0 …",
-  "createdAt": "2026-09-06T09:12:44.118Z" }] },
+  "createdAt": "2026-09-06T09:12:44.118Z" }],
   "meta": { "nextCursor": "…" } }
 ```
 
@@ -997,8 +999,8 @@ curl -s -b spec.txt -X POST $BASE/referrals/$REF/respond -H 'content-type: appli
 curl -s -b spec.txt -X POST $BASE/referrals/$REF/complete
 
 # 8 ─ the referring doctor is notified, and the opinion is on the chart
-curl -s -b doctor.txt "$BASE/notifications?unreadOnly=true" | jq '.data.items[].title'
-curl -s -b doctor.txt "$BASE/patients/$PATIENT/timeline" | jq '.data.items[].eventType'
+curl -s -b doctor.txt "$BASE/notifications?unreadOnly=true" | jq '.data[].title'
+curl -s -b doctor.txt "$BASE/patients/$PATIENT/timeline" | jq '.data[].eventType'
 curl -s -b doctor.txt "$BASE/patients/$PATIENT/notes" | jq '.data[] | select(.noteType=="SPECIALIST")'
 ```
 

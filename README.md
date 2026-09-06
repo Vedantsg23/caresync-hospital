@@ -14,7 +14,7 @@ never have to ask *"where is the information?"*
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.44-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/tests-129_passing-3fb950)](#testing)
+[![Tests](https://img.shields.io/badge/tests-130_passing-3fb950)](#testing)
 
 </div>
 
@@ -462,12 +462,12 @@ report, and none of them can read the audit trail.
 
 ## Testing
 
-**129 tests, all passing.**
+**130 tests, all passing.**
 
 ```bash
 npm run test:unit          # 49 tests, no database required
 createdb caresync_test     # then point .env.test at it
-npm run test:integration   # 80 tests against real PostgreSQL
+npm run test:integration   # 81 tests against real PostgreSQL
 ```
 
 Integration tests refuse to run unless `DATABASE_URL` names a test database, then migrate
@@ -479,7 +479,7 @@ and seed it themselves.
 | `unit/referral-state-machine` | Every legal and illegal transition, terminal states |
 | `unit/clinical-scoring` | Early-warning scoring, result flagging, the allergy interlock |
 | `unit/validation` | Request schemas and the password policy |
-| `integration/referral-workflow` | **The acceptance criterion** — the full doctor → specialist → doctor loop, 25 assertions |
+| `integration/referral-workflow` | **The acceptance criterion** — the full doctor → specialist → doctor loop, 26 assertions |
 | `integration/patient-access` | Who may open a record, search leakage, denial auditing, grants |
 | `integration/clinical-workflows` | Vitals, notes, pathology, radiology, pharmacy, admissions, administration, AI, auth |
 | `integration/aggregates` | Every dashboard figure compared against independently computed SQL |
