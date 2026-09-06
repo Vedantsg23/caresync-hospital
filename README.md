@@ -15,7 +15,6 @@ never have to ask *"where is the information?"*
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.44-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Tests](https://img.shields.io/badge/tests-129_passing-3fb950)](#testing)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
@@ -38,6 +37,7 @@ never have to ask *"where is the information?"*
 - [API reference](#api-reference)
 - [Deployment](#deployment)
 - [Limitations](#limitations)
+- [Licence and use](#licence-and-use)
 
 ---
 
@@ -654,9 +654,11 @@ Stated plainly, because a healthcare tool should be honest about what it is not:
 
 ---
 
-## License
+## Licence and use
 
-MIT — see [LICENSE](LICENSE).
+**All rights reserved.** This repository carries no open-source licence, so the default
+applies: the code is published to be read, not reused. If you want to use any part of it,
+ask first.
 
 Please also read [NOTICE](NOTICE): this is a demonstration of a clinical workflow, not a
 certified medical device. All patient data in this repository is invented. Never load real
