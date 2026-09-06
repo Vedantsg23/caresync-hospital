@@ -658,5 +658,6 @@ Stated plainly, because a healthcare tool should be honest about what it is not:
 
 MIT — see [LICENSE](LICENSE).
 
-All patient data in this repository is invented. Never load real patient information into
-a demonstration environment.
+Please also read [NOTICE](NOTICE): this is a demonstration of a clinical workflow, not a
+certified medical device. All patient data in this repository is invented. Never load real
+patient information into a demonstration environment.

@@ -1,0 +1,38 @@
+CareSync Hospital — important notice
+====================================
+
+This project is a demonstration of a clinical coordination workflow. It is
+not a certified medical device, and it has not been assessed against HIPAA,
+the GDPR, India's DPDP Act, or any other health-data regulation.
+
+Nothing in it should be used to make a clinical decision.
+
+Specifically:
+
+- **All data shipped with this repository is fabricated.** Every patient,
+  clinician, admission, laboratory result, imaging report, prescription and
+  referral in the seed is invented. Any resemblance to a real person is
+  coincidental. Never load real patient information into a demonstration
+  environment.
+
+- **The early-warning score is illustrative.** It follows the shape of NEWS
+  but is not a certified implementation and must not be relied on to detect
+  deterioration.
+
+- **The allergy interlock is a demonstration.** It matches recorded allergy
+  strings against medicine names. It is not a drug-interaction database and
+  does not cover cross-reactivity, contraindications or dosing.
+
+- **AI summaries are advisory.** They are generated from records the reader
+  is already authorised to see, are always attributed to their provider, and
+  never write to the chart. They are not a diagnosis.
+
+- **Demo accounts share one password** and are listed on the sign-in screen.
+  That is appropriate for a public demonstration and unacceptable anywhere
+  real data could reach. Set `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=false` and
+  reseed with a private `SEED_DEMO_PASSWORD` before any other use.
+
+The production checklist in README.md lists what would have to change before
+this system could face anything other than invented data.
+
+Licensed under the MIT License — see LICENSE.

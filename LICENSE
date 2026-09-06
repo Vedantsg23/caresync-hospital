@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-CareSync Hospital is a demonstration project. It is not a certified medical
-device and has not been assessed against HIPAA, the GDPR, the DPDP Act or any
-other health-data regulation. All patient records, clinicians and clinical
-results shipped with it are fabricated. Do not use it with real patient
-information.
