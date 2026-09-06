@@ -442,9 +442,11 @@ report, and none of them can read the audit trail.
 | --- | --- |
 | `npm run dev` | Development server on port 3000 |
 | `npm run build` | Production build |
+| `npm run vercel-build` | Migrate, seed if the database is empty, then build. Vercel runs this |
 | `npm start` | Serve the production build |
 | `npm run db:migrate` | Apply every migration in `database/migrations` |
-| `npm run db:seed` | Load the demonstration hospital |
+| `npm run db:seed` | Load the demonstration hospital. Refuses a non-empty database |
+| `npm run db:seed:if-empty` | Same, but a no-op success if the database already has data |
 | `npm run db:setup` | Migrate then seed |
 | `npm run db:reset` | Drop and recreate the schema (development only) |
 | `npm run db:generate` | Generate a migration from schema changes |
@@ -586,18 +588,39 @@ Full request and response shapes: **[`docs/API.md`](docs/API.md)**.
 
 ### Vercel
 
-1. Import the repository at [vercel.com/new](https://vercel.com/new).
-2. Add environment variables — at minimum `DATABASE_URL` and `AUTH_SECRET`.
-3. Deploy.
-4. Run the migrations and seed once against the production database:
+The repository ships a `vercel-build` script, which Vercel prefers over `build`:
 
-```bash
-DATABASE_URL="postgresql://…" npm run db:migrate
-DATABASE_URL="postgresql://…" SEED_FORCE=true npm run db:seed
+```
+npm run db:migrate && npm run db:seed:if-empty && next build
 ```
 
+So the deployment prepares its own database. The **first** build applies every migration
+and seeds the demo hospital; **every later build** applies any new migrations, finds the
+database already populated, leaves it alone and carries on. `--if-empty` is the whole
+difference between a build that is safe to repeat and one that wipes your data on every
+push.
+
+1. Import the repository at [vercel.com/new](https://vercel.com/new).
+2. Add environment variables (Settings → Environment Variables), applied to
+   **Production, Preview and Development**:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | Your pooled PostgreSQL connection string |
+   | `AUTH_SECRET` | A fresh 32+ character random value — `openssl rand -base64 48` |
+   | `NEXT_PUBLIC_APP_URL` | `https://<your-project>.vercel.app` |
+   | `SEED_DEMO_PASSWORD` | Password for the seeded demo accounts |
+   | `NEXT_PUBLIC_DEMO_PASSWORD` | The same value, so the login page's demo buttons work |
+   | `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | `true` for a public demo, `false` otherwise |
+
+   Leave `SEED_FORCE` unset. Setting it to `true` makes every deploy wipe and reseed.
+
+3. Deploy. Watch the build log for `Seeded:` on the first run.
+
 Use a **pooled** connection string on serverless (Supabase Session Pooler, or Neon's
-pooled endpoint) and put the direct URL in `DIRECT_URL` for migrations.
+`-pooler` endpoint) and put the direct URL in `DIRECT_URL` for migrations.
+
+To reset the demo data later, set `SEED_FORCE=true`, redeploy once, then remove it again.
 
 ### Anywhere else
 
