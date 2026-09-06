@@ -651,6 +651,25 @@ adding or editing variables, go to **Deployments → ⋯ → Redeploy**.
 
 The variable *names* are reported; the values never are.
 
+### If sign-in returns 401 with the password you expect
+
+`/api/health` says `configuration: ok`, the API returns `401 INVALID_CREDENTIALS`
+rather than a 500, and yet the demo password is rejected. That combination means the
+accounts exist but were hashed with a different password: the seed uses whatever
+`SEED_DEMO_PASSWORD` held **on the build that first populated the database**, and later
+changing that variable does not rewrite existing hashes.
+
+Force a reseed with a password you know:
+
+1. Set `SEED_DEMO_PASSWORD` to the value you want, and `SEED_FORCE=true`.
+2. Redeploy. The build wipes the demo data and recreates it with that password.
+3. **Delete `SEED_FORCE` and redeploy again.** Left in place it wipes the database on
+   every future deploy, which is why it is not the default.
+
+If the demo buttons are missing from the sign-in page, that is a separate variable:
+`NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` must be `true`, and `NEXT_PUBLIC_DEMO_PASSWORD` must
+match `SEED_DEMO_PASSWORD`. Both are baked in at build time, so they need a redeploy too.
+
 ### Anywhere else
 
 The app is a standard Next.js server. `npm run build && npm start` behind any Node host
