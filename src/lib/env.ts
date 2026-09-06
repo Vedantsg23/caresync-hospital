@@ -52,9 +52,30 @@ export class EnvConfigError extends Error {
 
 let cached: Env | null = null;
 
+/**
+ * An environment variable set to the empty string is unset.
+ *
+ * Every system that hands us an environment does this: a shell `export FOO=`,
+ * a Dockerfile `ENV FOO=`, a CI secret that resolved to nothing, and — the case
+ * that bit us — a Vercel dashboard row saved with a blank value. Zod's
+ * `.default()` only fires on `undefined`, so without this an empty string is
+ * "provided", the default never applies, and a variable the operator never
+ * meant to set fails validation and takes the whole deployment down.
+ *
+ * Blanking a variable in a dashboard has to mean the same thing as deleting the
+ * row, because to the person doing it those are the same action.
+ */
+function definedEntries(env: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === 'string' && value.trim() !== '') out[key] = value;
+  }
+  return out;
+}
+
 export function getEnv(): Env {
   if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
+  const parsed = schema.safeParse(definedEntries(process.env));
   if (!parsed.success) {
     const variables = [...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? '(root)')))];
     const detail = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n')

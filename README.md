@@ -14,7 +14,7 @@ never have to ask *"where is the information?"*
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.44-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/tests-135_passing-3fb950)](#testing)
+[![Tests](https://img.shields.io/badge/tests-137_passing-3fb950)](#testing)
 
 </div>
 
@@ -462,10 +462,10 @@ report, and none of them can read the audit trail.
 
 ## Testing
 
-**135 tests, all passing.**
+**137 tests, all passing.**
 
 ```bash
-npm run test:unit          # 54 tests, no database required
+npm run test:unit          # 56 tests, no database required
 createdb caresync_test     # then point .env.test at it
 npm run test:integration   # 81 tests against real PostgreSQL
 ```
@@ -479,7 +479,7 @@ and seed it themselves.
 | `unit/referral-state-machine` | Every legal and illegal transition, terminal states |
 | `unit/clinical-scoring` | Early-warning scoring, result flagging, the allergy interlock |
 | `unit/validation` | Request schemas and the password policy |
-| `unit/env` | Configuration validation reports the offending variable names, never their values |
+| `unit/env` | Configuration validation: blank variables count as unset, offending names are reported, values never are |
 | `integration/referral-workflow` | **The acceptance criterion** — the full doctor → specialist → doctor loop, 26 assertions |
 | `integration/patient-access` | Who may open a record, search leakage, denial auditing, grants |
 | `integration/clinical-workflows` | Vitals, notes, pathology, radiology, pharmacy, admissions, administration, AI, auth |
@@ -641,6 +641,7 @@ A `503` names the problem rather than hiding it:
 | What it says | What happened |
 | --- | --- |
 | `"configuration": ["AUTH_SECRET"]` | That variable is missing or too short. Add it, then **redeploy**. |
+| a variable you thought you set | Check it isn't saved blank. A blank value counts as unset, so any default applies — but a variable with no default still fails. |
 | `"database": "unreachable"` | `DATABASE_URL` is wrong, or the database is asleep or firewalled. |
 
 **Vercel applies environment variables at build time.** Adding one to project settings

@@ -70,4 +70,33 @@ describe('environment validation', () => {
       expect(message, 'the message must never carry a value').not.toContain(secret);
     }
   });
+
+  it('treats a blank variable as unset, so its default applies', async () => {
+    // A Vercel row saved empty, a shell `export FOO=`, a CI secret that resolved
+    // to nothing — all arrive as "". Zod's .default() only fires on undefined,
+    // so without normalisation these fail validation and take the deploy down.
+    // This is the exact failure that broke sign-in in production.
+    vi.stubEnv('SESSION_MAX_AGE', '');
+    vi.stubEnv('AI_PROVIDER', '');
+    vi.stubEnv('STORAGE_DRIVER', '');
+    vi.stubEnv('RATE_LIMIT_API_PER_MIN', '');
+    vi.stubEnv('RATE_LIMIT_LOGIN_PER_MIN', '   ');
+
+    const { getEnv, envStatus } = await freshEnv();
+    expect(envStatus()).toEqual({ ok: true });
+
+    const env = getEnv();
+    expect(env.SESSION_MAX_AGE).toBe(28800);
+    expect(env.AI_PROVIDER).toBe('heuristic');
+    expect(env.STORAGE_DRIVER).toBe('database');
+    expect(env.RATE_LIMIT_API_PER_MIN).toBe(300);
+    expect(env.RATE_LIMIT_LOGIN_PER_MIN).toBe(10);
+  });
+
+  it('still rejects a blank variable that has no default', async () => {
+    // Emptiness is not permission to start without a signing key.
+    vi.stubEnv('AUTH_SECRET', '');
+    const { envStatus } = await freshEnv();
+    expect(envStatus()).toEqual({ ok: false, invalid: ['AUTH_SECRET'] });
+  });
 });
