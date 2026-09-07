@@ -16,6 +16,30 @@ never have to ask *"where is the information?"*
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Tests](https://img.shields.io/badge/tests-137_passing-3fb950)](#testing)
 
+### ▶ [**Try it live — caresync-hospital.vercel.app**](https://caresync-hospital.vercel.app)
+
+**Sign in with any account below. The password for all of them is `CareSync#2026`.**
+The sign-in page lists them too — one click fills the form.
+
+| Role | Email | Sees |
+| --- | --- | --- |
+| Senior doctor | `doctor@caresync.demo` | Their caseload, referrals they raised |
+| Specialist (Cardiology) | `specialist@caresync.demo` | Referrals sent **to** them |
+| Nurse | `nurse@caresync.demo` | Their ward, observations due |
+| Hospital administrator | `admin@caresync.demo` | The whole hospital, audit trail |
+
+**The two-minute tour:** sign in as **doctor@caresync.demo**, open **Rahul Mehta**
+(PT-2026-00142), and press **Refer to specialist** — pick Dr. Priya Mehta. Then sign in as
+**specialist@caresync.demo**, accept it from the inbox and record a response. Sign back in
+as the doctor: the reply is waiting in your notifications *and* written onto the patient's
+chart as a specialist note. That loop is the point of the whole system.
+
+Try the other accounts too, and notice what each one **cannot** reach. The nurse has no
+prescribing button. Pathology sees only patients with a laboratory order. Authorization is
+enforced in the database, not by hiding buttons.
+
+*Demonstration data. Every patient, clinician and result is invented — see [NOTICE](NOTICE).*
+
 </div>
 
 ---
@@ -104,7 +128,7 @@ row in `patient_access_grants`, tied to that referral, granted by the referring 
 and itself audited. Access is never implicit.
 
 This whole loop is covered by [`tests/integration/referral-workflow.test.ts`](tests/integration/referral-workflow.test.ts),
-which asserts 25 separate properties against a real database.
+which asserts 26 separate properties against a real database.
 
 ---
 
