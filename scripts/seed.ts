@@ -98,6 +98,23 @@ async function main() {
     process.exit(1);
   }
 
+  // SEED_FORCE is a loaded gun left on the table. It is meant to be set for one
+  // deploy and removed, but nothing enforces that, and a variable set in a
+  // dashboard is easy to forget — the next push would silently destroy whatever
+  // the demo had accumulated. So every forced run says so, loudly, in the build
+  // log where the person who set it is already looking.
+  if (Number(count) > 0 && FORCE) {
+    console.warn(
+      '\n  ============================================================\n' +
+      `   SEED_FORCE is set. Destroying ${count} existing users and all\n` +
+      '   associated clinical records, then reseeding from scratch.\n' +
+      '\n' +
+      '   REMOVE SEED_FORCE AFTER THIS DEPLOY. While it is set, every\n' +
+      '   future build wipes this database again.\n' +
+      '  ============================================================\n',
+    );
+  }
+
   log('clearing existing data');
   await db.execute(sql`
     TRUNCATE TABLE
