@@ -177,6 +177,21 @@ export function mailer(): MailDriver {
 export function resetMailer() { cached = null; }
 
 /**
+ * Which driver is actually configured, for the health endpoint.
+ *
+ * Reported without instantiating anything, so a deployment whose Resend key is
+ * missing still gets an answer here rather than an exception — knowing that
+ * mail is set to `resend` and misconfigured is the useful case.
+ */
+export function mailDriverName(): 'console' | 'resend' | 'smtp' {
+  try {
+    return getEnv().MAIL_DRIVER;
+  } catch {
+    return 'console';
+  }
+}
+
+/**
  * Send, but never let a mail failure break the flow that triggered it.
  *
  * A user who registers successfully should not see a 500 because the mail

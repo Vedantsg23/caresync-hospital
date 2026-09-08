@@ -52,6 +52,16 @@ const schema = z.object({
   SESSION_ABSOLUTE_MAX_AGE: z.coerce.number().int().positive().default(604800),
   /** Public origin, used to build links inside emails. */
   APP_ORIGIN: z.string().optional(),
+
+  /* --- operations ------------------------------------------------------ */
+  /** Verbosity of the JSON request log. Defaults to info in production. */
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).optional(),
+  /**
+   * Pooled connections per instance. Small on purpose: with serverless
+   * instances multiplying, the constraint is the database's connection limit,
+   * not this process's appetite. See docs/SCALING.md.
+   */
+  DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(5),
 });
 
 export type Env = z.infer<typeof schema>;

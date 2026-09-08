@@ -75,9 +75,22 @@ function contentSecurityPolicy(nonce: string): string {
 }
 
 /** Applied to every response the middleware produces, redirects included. */
-function withSecurityHeaders(res: NextResponse, csp: string): NextResponse {
+function withSecurityHeaders(res: NextResponse, csp: string, requestId: string): NextResponse {
   res.headers.set('Content-Security-Policy', csp);
+  res.headers.set('x-request-id', requestId);
   return res;
+}
+
+/**
+ * One id per request, minted at the edge so that the redirect a browser
+ * follows, the API call it then makes and every log line either produces can be
+ * tied together. An inbound id is honoured if it looks like one, which is what
+ * lets a trace survive a proxy in front of this.
+ */
+function requestId(req: NextRequest): string {
+  const supplied = req.headers.get('x-request-id');
+  if (supplied && /^[\w-]{8,128}$/.test(supplied)) return supplied;
+  return crypto.randomUUID();
 }
 
 export async function middleware(req: NextRequest) {
@@ -87,8 +100,10 @@ export async function middleware(req: NextRequest) {
   // onto the scripts it renders.
   const nonce = crypto.randomUUID().replace(/-/g, '');
   const csp = contentSecurityPolicy(nonce);
+  const rid = requestId(req);
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('x-request-id', rid);
   requestHeaders.set('Content-Security-Policy', csp);
   const forward = () => NextResponse.next({ request: { headers: requestHeaders } });
 
@@ -98,7 +113,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/favicon') ||
     pathname === '/robots.txt'
   ) {
-    return withSecurityHeaders(forward(), csp);
+    return withSecurityHeaders(forward(), csp, rid);
   }
 
   const token = req.cookies.get('caresync_session')?.value;
@@ -113,7 +128,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  if (valid) return withSecurityHeaders(forward(), csp);
+  if (valid) return withSecurityHeaders(forward(), csp, rid);
 
   if (pathname.startsWith('/api/')) {
     return withSecurityHeaders(
@@ -122,12 +137,13 @@ export async function middleware(req: NextRequest) {
         { status: 401 },
       ),
       csp,
+      rid,
     );
   }
 
   const loginUrl = new URL('/login', req.url);
   if (pathname !== '/') loginUrl.searchParams.set('next', pathname + req.nextUrl.search);
-  return withSecurityHeaders(NextResponse.redirect(loginUrl), csp);
+  return withSecurityHeaders(NextResponse.redirect(loginUrl), csp, rid);
 }
 
 export const config = {

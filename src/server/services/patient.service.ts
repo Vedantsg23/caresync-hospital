@@ -99,14 +99,40 @@ export async function searchPatients(
   const visibility = patientVisibilityFilter(user);
   if (visibility) conditions.push(sql`(${visibility})`);
 
+  /**
+   * Search matches the expression the trigram index actually covers.
+   *
+   * This used to test three separate expressions — first||last, last||first,
+   * and patient_number alone — none of which was the one `patients_search_trgm`
+   * indexes. The index was therefore never used, and every search sequentially
+   * scanned the whole patient table: measured at 109ms for a page of twenty and
+   * a further 379ms for the count, against 50,027 patients.
+   *
+   * Matching `lower(first || ' ' || last || ' ' || patient_number)` — the
+   * indexed expression, verbatim — one token at a time is both faster and
+   * better behaved. "Sharma Priya" and "Priya PS-0004" now find the patient,
+   * because the tokens are AND-ed rather than the whole string being matched
+   * in one order; neither worked before.
+   */
   if (params.q?.trim()) {
-    const term = `%${params.q.trim().toLowerCase()}%`;
-    conditions.push(sql`(
-      lower(${patients.firstName} || ' ' || ${patients.lastName}) LIKE ${term}
-      OR lower(${patients.patientNumber}) LIKE ${term}
-      OR lower(${patients.lastName} || ' ' || ${patients.firstName}) LIKE ${term}
-      OR EXISTS (SELECT 1 FROM ${admissions} sa WHERE sa.patient_id = patients.id AND lower(sa.admission_number) LIKE ${term})
-    )`);
+    const tokens = params.q.trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+    const searchable = sql`lower(${patients.firstName} || ' ' || ${patients.lastName} || ' ' || ${patients.patientNumber})`;
+
+    for (const token of tokens) {
+      const like = `%${token}%`;
+      // A correlated EXISTS on the other side of an OR blocks the trigram index
+      // for the whole predicate, so the admission-number branch is only added
+      // for tokens that could plausibly be one. Admission numbers are
+      // structured (ADM-000000123); a token with no digit in it is a name, and
+      // searching names is the overwhelmingly common case.
+      const couldBeAnIdentifier = /\d/.test(token);
+      conditions.push(couldBeAnIdentifier
+        ? sql`(
+            ${searchable} LIKE ${like}
+            OR EXISTS (SELECT 1 FROM ${admissions} sa WHERE sa.patient_id = patients.id AND lower(sa.admission_number) LIKE ${like})
+          )`
+        : sql`${searchable} LIKE ${like}`);
+    }
   }
 
   if (params.status) conditions.push(sql`${patients.status} = ${params.status}`);

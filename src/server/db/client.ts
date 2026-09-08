@@ -28,6 +28,33 @@ function buildPool(): Pool {
   }
 
   const pool = new Pool(config);
+
+  /**
+   * JIT off, deliberately, and measured.
+   *
+   * PostgreSQL turns on LLVM compilation for any plan whose *estimated* cost
+   * clears jit_above_cost (100000). Estimates on a table of 50,000 patients
+   * clear that easily, and once past jit_optimize_above_cost the planner also
+   * runs the optimiser. On the dashboard query this was captured as:
+   *
+   *   Timing: Generation 3.9 ms, Inlining 17.8 ms, Optimization 311.9 ms,
+   *           Emission 183.1 ms, Total 516.7 ms
+   *
+   * out of 614ms total — the query itself took under 100ms. JIT pays for
+   * itself on an analytical query that scans for seconds; it is a straight
+   * loss on an OLTP request that returns twenty rows, and here it was the
+   * single largest component of the slowest endpoint in the application.
+   *
+   * Set per connection rather than per deployment because most managed
+   * Postgres (Neon, Supabase, RDS) ships with jit on and does not always let
+   * you change it, and because the reason belongs next to the measurement.
+   */
+  pool.on('connect', (client) => {
+    client.query('SET jit = off').catch(() => {
+      // A provider that refuses the SET is not a reason to fail a request.
+    });
+  });
+
   pool.on('error', (err) => {
     console.error('[db] idle client error', err.message);
   });

@@ -80,6 +80,33 @@ async function flushTimeline() {
 async function main() {
   console.log('\nCareSync Hospital - seeding demo data\n');
 
+  /**
+   * A production deployment starts empty and stays that way.
+   *
+   * The build command no longer calls this script, which is the real fix, but
+   * a build command is one line in a dashboard that anybody can change back.
+   * This is the second lock: invented patients must never appear in a system
+   * where a real one could be looked up, and a demonstration account must never
+   * exist alongside real records. Overriding it takes a deliberate, named
+   * variable, which is exactly the amount of friction this deserves.
+   */
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_ALLOW_PRODUCTION !== 'true') {
+    console.error(
+      '\n  Refusing to seed: NODE_ENV=production.\n' +
+      '  This script writes invented patients and shared-password demo\n' +
+      '  accounts. Neither belongs in a deployment that real people use.\n' +
+      '\n' +
+      '  A production database is meant to start empty: apply migrations,\n' +
+      '  then create the first administrator with BOOTSTRAP_TOKEN via\n' +
+      '  POST /api/auth/bootstrap. See docs/DEPLOYMENT.md.\n' +
+      '\n' +
+      '  If this really is a throwaway demonstration deployment, set\n' +
+      '  SEED_ALLOW_PRODUCTION=true for one run and remove it afterwards.\n',
+    );
+    await pool.end();
+    process.exit(1);
+  }
+
   const [{ count }] = (await db.execute<{ count: string }>(
     sql`SELECT count(*)::text AS count FROM users`,
   )).rows as unknown as { count: string }[];

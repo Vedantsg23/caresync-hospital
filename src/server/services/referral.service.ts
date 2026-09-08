@@ -140,10 +140,14 @@ export async function listReferrals(
 
   return baseReferralQuery()
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(
-      desc(sql`CASE ${referrals.priority} WHEN 'EMERGENCY' THEN 2 WHEN 'URGENT' THEN 1 ELSE 0 END`),
-      desc(referrals.createdAt),
-    )
+    // `referral_priority` is declared ROUTINE, URGENT, EMERGENCY, so ordering by
+    // the enum descending already puts emergencies first — the CASE expression
+    // this replaces computed the same order, but no index can satisfy an
+    // ordering by an expression, so the inbox read every matching referral
+    // (9,901 rows, ~845 bytes each) to return fifty. Ordering by the column
+    // lets referrals_specialist_priority_created_idx return them already
+    // sorted.
+    .orderBy(desc(referrals.priority), desc(referrals.createdAt))
     .limit(boundedLimit(params.limit, 50));
 }
 
