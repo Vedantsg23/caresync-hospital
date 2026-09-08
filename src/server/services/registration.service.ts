@@ -36,6 +36,15 @@ function appOrigin(): string {
 }
 
 /** Roles a person may ask for. Neither SUPER_ADMIN nor HOSPITAL_ADMIN is here. */
+/**
+ * The role a registration holds until an administrator grants a real one.
+ *
+ * Named once so the row that is written and the audit row that describes it
+ * cannot drift apart. It is the least-privileged role in the system, and the
+ * account is inactive besides — the role is a placeholder, not a grant.
+ */
+const UNAPPROVED_ROLE = 'NURSE' as const satisfies Role;
+
 export const REQUESTABLE_ROLES: Role[] = ROLES.filter(
   (r) => r !== 'SUPER_ADMIN' && r !== 'HOSPITAL_ADMIN',
 );
@@ -119,7 +128,7 @@ export async function register(
         // The permission system reads `primaryRole`. Until an administrator
         // approves this account it holds the least-privileged role available,
         // and `status` keeps it from signing in regardless.
-        primaryRole: 'NURSE',
+        primaryRole: UNAPPROVED_ROLE,
         requestedRole: input.requestedRole,
         requestedDepartmentId: input.requestedDepartmentId || null,
         registrationNote: input.registrationNote?.trim() || null,
@@ -154,8 +163,11 @@ export async function register(
   await recordAudit({
     action: AUDIT.REGISTRATION_SUBMITTED, entityType: 'user', entityId: created.id,
     // Nobody administrative acted here, but the applicant did, and an audit row
-    // that says "system" submitted a registration is a row that answers nothing.
-    userId: created.id, outcome: 'SUCCESS',
+    // that reads "system submitted a registration" answers nothing. The role
+    // recorded is the inert placeholder every registration starts with — no
+    // role has been granted at this point, which is the whole point.
+    actor: { id: created.id, email, role: UNAPPROVED_ROLE },
+    outcome: 'SUCCESS',
     metadata: { email, requestedRole: input.requestedRole },
     ipAddress: context.ipAddress, userAgent: context.userAgent,
   });

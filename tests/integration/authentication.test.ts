@@ -261,6 +261,14 @@ describe('production authentication', () => {
       expect(entry!.actorEmail).toBe(admin.email);
       expect(entry!.userId).toBe(admin.id);
       expect(entry!.actorRole).toBe(admin.role);
+
+      // The applicant's own action is attributed to the applicant, for the same
+      // reason: "system registered an account" describes nothing.
+      const [submitted] = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'REGISTRATION_SUBMITTED'), eq(auditLogs.entityId, id)))
+        .limit(1);
+      expect(submitted!.actorEmail).toBeTruthy();
+      expect(submitted!.userId).toBe(id);
     });
 
     it('rejection blocks sign-in and records the reason', async () => {
