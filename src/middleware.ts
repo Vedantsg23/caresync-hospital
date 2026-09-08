@@ -9,7 +9,30 @@ import { jwtVerify } from 'jose';
  * re-verifies the session against the database and checks permissions, and the
  * database carries RLS policies on top of that.
  */
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/health'];
+/**
+ * Everything a person can reach before they have an account. The edge gate is a
+ * fast first filter, not the security boundary — every one of these endpoints
+ * re-validates its own input, and the authenticated ones re-check the session
+ * against the database regardless of what happens here.
+ */
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/verify-email',
+  '/forgot-password',
+  '/reset-password',
+  '/accept-invitation',
+  '/api/health',
+  '/api/public',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/verify-email',
+  '/api/auth/resend-verification',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/accept-invitation',
+  '/api/auth/bootstrap',
+];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

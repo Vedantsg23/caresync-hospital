@@ -17,6 +17,61 @@ export const authApi = {
   me: () => api.get<AuthUserDto>('/auth/me'),
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
     api.post<{ changed: boolean; message: string }>('/auth/change-password', body),
+
+  /* --- account lifecycle -------------------------------------------- */
+  register: (body: {
+    email: string; fullName: string; password: string; confirmPassword: string;
+    phone?: string; requestedRole: string; requestedDepartmentId?: string; registrationNote?: string;
+  }) => api.post<{ status: string; message: string }>('/auth/register', body),
+
+  verifyEmail: (body: { token: string }) =>
+    api.post<{ email: string; status: string; message: string }>('/auth/verify-email', body),
+
+  resendVerification: (body: { email: string }) =>
+    api.post<{ message: string }>('/auth/resend-verification', body),
+
+  forgotPassword: (body: { email: string }) =>
+    api.post<{ message: string }>('/auth/forgot-password', body),
+
+  resetPassword: (body: { token: string; newPassword: string; confirmPassword: string }) =>
+    api.post<{ message: string }>('/auth/reset-password', body),
+
+  describeInvitation: (token: string) =>
+    api.get<{ email: string; role: string | null; departmentId: string | null }>(
+      `/auth/accept-invitation?token=${encodeURIComponent(token)}`),
+
+  acceptInvitation: (body: {
+    token: string; fullName: string; password: string; confirmPassword: string;
+    phone?: string; designation?: string;
+  }) => api.post<{ id: string; email: string; role: string; message: string }>('/auth/accept-invitation', body),
+
+  refresh: () => api.post<{ expiresAt: string }>('/auth/refresh'),
+};
+
+/** Unauthenticated reference data used by the registration form. */
+export const referenceApi = {
+  publicDepartments: () =>
+    api.get<{ id: string; name: string; code: string }[]>('/public/departments'),
+};
+
+export type PendingAccountDto = {
+  id: string; email: string; fullName: string; phone: string | null;
+  requestedRole: string | null; requestedDepartmentId: string | null;
+  requestedDepartmentName: string | null; registrationNote: string | null;
+  emailVerifiedAt: string | null; status: string; createdAt: string;
+};
+
+export const registrationsApi = {
+  list: (params?: { limit?: number; cursor?: string }) =>
+    api.get<PendingAccountDto[]>('/admin/registrations', params),
+  approve: (id: string, body: {
+    role: string; departmentId?: string; designation?: string;
+    specialization?: string; registrationNumber?: string; acceptsReferrals?: boolean;
+  }) => api.post<{ id: string; email: string; role: string }>(`/admin/registrations/${id}/approve`, body),
+  reject: (id: string, body: { reason: string }) =>
+    api.post<{ id: string }>(`/admin/registrations/${id}/reject`, body),
+  invite: (body: { email: string; role: string; departmentId?: string }) =>
+    api.post<{ email: string; message: string }>('/admin/invitations', body),
 };
 
 export const dashboardApi = {

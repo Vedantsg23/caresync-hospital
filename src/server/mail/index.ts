@@ -59,9 +59,18 @@ class ConsoleMailDriver implements MailDriver {
   async send(message: Mail) {
     mailbox.push({ ...message, at: new Date() });
     if (mailbox.length > 200) mailbox.splice(0, mailbox.length - 200);
-    // Subject and recipient only. The body of a reset mail contains a live
-    // credential, and logs are the last place that should exist.
+
     console.info(`[mail:console] to=${message.to} subject=${JSON.stringify(message.subject)}`);
+
+    // The body carries live credentials — a verification link, a reset token —
+    // so it is printed ONLY outside production. Locally that is the point:
+    // without it a developer can never complete a registration, because there
+    // is no inbox to open. In production the body never reaches a log, whatever
+    // driver is configured, because logs outlive the tokens in them and are
+    // read by people who should not hold them.
+    if (process.env.NODE_ENV !== 'production') {
+      console.info(`[mail:console] --- body (development only) ---\n${message.text}\n[mail:console] --- end ---`);
+    }
     return { id: null };
   }
 }

@@ -3,8 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Users, BedDouble, Stethoscope, Send, Siren, Building2, ScrollText, Activity,
-} from 'lucide-react';
+  Users, BedDouble, Stethoscope, Send, Siren, Building2, ScrollText, Activity, UserCheck } from 'lucide-react';
 import { dashboardApi } from '@/lib/api/endpoints';
 import { useAuth } from '@/components/providers';
 import { useRealtime } from '@/hooks/use-realtime';
@@ -168,6 +167,7 @@ export function AdminOverview() {
 
       <div className="grid sm:grid-cols-3 gap-space-4">
         {[
+          { href: '/admin/registrations', label: 'Account requests', description: 'Review people who registered, grant or refuse their access.', icon: UserCheck },
           { href: '/admin/staff', label: 'Staff management', description: 'Create accounts, assign roles and departments, deactivate leavers.', icon: Users },
           { href: '/admin/departments', label: 'Departments', description: 'Hospital structure, clinical and non-clinical departments.', icon: Building2 },
           { href: '/admin/audit', label: 'Audit trail', description: 'Append-only record of every access and change.', icon: ScrollText },

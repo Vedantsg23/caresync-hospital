@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogIn, ShieldCheck } from 'lucide-react';
 import { authApi } from '@/lib/api/endpoints';
@@ -8,12 +9,13 @@ import { ApiError } from '@/lib/api/client';
 import { Button, Field, Input } from '@/components/ui';
 
 /**
- * Demonstration accounts.
+ * Demonstration accounts — opt-IN, and off by default.
  *
- * This panel puts a shared password into the client bundle, which is fine for a
- * public demo and unacceptable for a real hospital deployment. Set
- * NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=false to remove it (and reseed with a private
- * SEED_DEMO_PASSWORD) before putting this in front of real users.
+ * This panel puts a shared password into the client bundle. That is acceptable
+ * for a public showcase and unacceptable for a hospital, so production shows
+ * nothing here unless an operator sets NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true on
+ * purpose. The default used to be "on", which is the wrong way round for
+ * software that is meant to be deployed for real.
  */
 const DEMO_ACCOUNTS = [
   { email: 'doctor@caresync.demo', label: 'Senior Doctor', name: 'Dr. Aarav Sharma' },
@@ -33,7 +35,7 @@ export function LoginForm({ next }: { next?: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
-  const showDemo = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS !== 'false';
+  const showDemo = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true';
   const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'CareSync#2026';
 
   async function submit(e: React.FormEvent) {
@@ -86,6 +88,16 @@ export function LoginForm({ next }: { next?: string }) {
           />
         </Field>
 
+        <div className="flex items-baseline justify-between">
+          <span aria-hidden />
+          <Link
+            href="/forgot-password"
+            className="text-label-md text-primary font-medium hover:underline"
+          >
+            Forgot your password?
+          </Link>
+        </div>
+
         <Field label="Password" htmlFor="password" error={fieldErrors.password} required>
           <Input
             id="password"
@@ -103,6 +115,13 @@ export function LoginForm({ next }: { next?: string }) {
         <Button type="submit" size="lg" loading={loading} icon={<LogIn className="h-4 w-4" />} className="w-full">
           {loading ? 'Signing in' : 'Sign in'}
         </Button>
+
+        <p className="text-body-sm text-on-surface-variant text-center pt-space-1">
+          New to CareSync?{' '}
+          <Link href="/register" className="text-primary font-medium hover:underline">
+            Create an account
+          </Link>
+        </p>
       </form>
 
       {showDemo ? (
@@ -126,7 +145,7 @@ export function LoginForm({ next }: { next?: string }) {
           </div>
           <p className="text-label-md text-outline mt-space-3">
             Selecting an account fills in the shared demonstration password.
-            This panel is disabled by setting NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=false.
+            This panel only appears when NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true.
           </p>
         </div>
       ) : null}
