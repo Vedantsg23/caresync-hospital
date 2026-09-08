@@ -11,6 +11,7 @@ import { recordTimelineEvent } from './timeline.service';
 import { notify } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_PAGE_SIZE, MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 /* ------------------------------------------------------------- vitals --- */
 
@@ -181,7 +182,7 @@ export async function listVitals(user: AuthUser, patientId: string, limit = 50) 
     .innerJoin(users, eq(users.id, vitalSigns.recordedById))
     .where(eq(vitalSigns.patientId, patientId))
     .orderBy(desc(vitalSigns.recordedAt))
-    .limit(Math.min(limit, 200));
+    .limit(boundedLimit(limit, 50));
 }
 
 /* ------------------------------------------------------- observations --- */
@@ -363,7 +364,12 @@ export async function updateClinicalNote(
   return updated;
 }
 
-export async function listClinicalNotes(user: AuthUser, patientId: string, noteType?: NoteType) {
+export async function listClinicalNotes(
+  user: AuthUser,
+  patientId: string,
+  noteType?: NoteType,
+  limit?: number,
+) {
   await assertPatientAccess(user, patientId);
   const conditions = [eq(clinicalNotes.patientId, patientId), eq(clinicalNotes.isRetired, false)];
   if (noteType) conditions.push(eq(clinicalNotes.noteType, noteType));
@@ -386,7 +392,8 @@ export async function listClinicalNotes(user: AuthUser, patientId: string, noteT
     .innerJoin(users, eq(users.id, clinicalNotes.authorId))
     .leftJoin(departments, eq(departments.id, clinicalNotes.departmentId))
     .where(and(...conditions))
-    .orderBy(desc(clinicalNotes.createdAt));
+    .orderBy(desc(clinicalNotes.createdAt))
+    .limit(boundedLimit(limit, 100));
 }
 
 export async function getNoteVersions(user: AuthUser, noteId: string) {
@@ -407,7 +414,8 @@ export async function getNoteVersions(user: AuthUser, noteId: string) {
     .from(clinicalNoteVersions)
     .innerJoin(users, eq(users.id, clinicalNoteVersions.authorId))
     .where(eq(clinicalNoteVersions.noteId, noteId))
-    .orderBy(desc(clinicalNoteVersions.version));
+    .orderBy(desc(clinicalNoteVersions.version))
+    .limit(MAX_PAGE_SIZE);
 }
 
 /** Vitals trend for sparklines — last N hours, oldest first. */
@@ -426,7 +434,8 @@ export async function vitalsTrend(user: AuthUser, patientId: string, hours = 72)
     })
     .from(vitalSigns)
     .where(and(eq(vitalSigns.patientId, patientId), gte(vitalSigns.recordedAt, since)))
-    .orderBy(vitalSigns.recordedAt);
+    .orderBy(vitalSigns.recordedAt)
+    .limit(MAX_REFERENCE_ROWS);
   return rows;
 }
 

@@ -9,6 +9,7 @@ import {
 } from '@/server/db/schema';
 import { patientVisibilityFilter } from './patient-access.service';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_PAGE_SIZE } from '@/server/core/pagination';
 
 const startOfToday = () => {
   const d = new Date();
@@ -444,7 +445,8 @@ export async function getCareTeam(patientId: string) {
     .leftJoin(staffProfiles, eq(staffProfiles.userId, users.id))
     .leftJoin(departments, eq(departments.id, staffProfiles.departmentId))
     .where(and(eq(careTeamMembers.patientId, patientId), isNull(careTeamMembers.removedAt)))
-    .orderBy(careTeamMembers.assignedAt);
+    .orderBy(careTeamMembers.assignedAt)
+    .limit(MAX_PAGE_SIZE);
 }
 
 export async function addCareTeamMember(

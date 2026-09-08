@@ -13,6 +13,7 @@ import { notifyMany } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
 import { patientVisibilityFilter } from '@/server/services/patient-access.service';
+import { MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 export type ResultFlag = 'NORMAL' | 'LOW' | 'HIGH' | 'CRITICAL_LOW' | 'CRITICAL_HIGH' | 'ABNORMAL';
 
@@ -52,7 +53,8 @@ async function clinicalRecipients(patientId: string, exclude?: string): Promise<
 export async function listInvestigationCatalog(category?: 'LAB' | 'RADIOLOGY') {
   return db.select().from(investigations)
     .where(category ? and(eq(investigations.isActive, true), eq(investigations.category, category)) : eq(investigations.isActive, true))
-    .orderBy(investigations.panel, investigations.name);
+    .orderBy(investigations.panel, investigations.name)
+    .limit(MAX_REFERENCE_ROWS);
 }
 
 export async function createLabOrder(
@@ -263,7 +265,7 @@ export async function listLabOrders(
     .innerJoin(users, eq(users.id, investigationOrders.orderedById))
     .where(and(...conditions))
     .orderBy(desc(investigationOrders.orderedAt))
-    .limit(Math.min(params.limit ?? 100, 300));
+    .limit(boundedLimit(params.limit, 100));
 }
 
 export async function getPatientLabs(user: AuthUser, patientId: string) {
@@ -290,6 +292,7 @@ export async function getPatientLabs(user: AuthUser, patientId: string) {
         .innerJoin(users, eq(users.id, investigationResults.resultedById))
         .where(inArray(investigationResults.orderId, orderIds))
         .orderBy(desc(investigationResults.resultedAt))
+        .limit(MAX_REFERENCE_ROWS)
     : [];
 
   return orders.map((o) => ({ ...o, results: results.filter((r) => r.orderId === o.id) }));
@@ -307,7 +310,8 @@ export async function analyteTrend(user: AuthUser, patientId: string, analyte: s
     })
     .from(investigationResults)
     .where(and(eq(investigationResults.patientId, patientId), eq(investigationResults.analyte, analyte)))
-    .orderBy(investigationResults.resultedAt);
+    .orderBy(investigationResults.resultedAt)
+    .limit(MAX_REFERENCE_ROWS);
 }
 
 /* --------------------------------------------------------- radiology ---- */
@@ -519,7 +523,7 @@ export async function listRadiologyStudies(
     .leftJoin(departments, eq(departments.id, admissions.departmentId))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(radiologyStudies.requestedAt))
-    .limit(Math.min(params.limit ?? 100, 300));
+    .limit(boundedLimit(params.limit, 100));
 
   const ids = studies.map((s) => s.id);
   const reports = ids.length

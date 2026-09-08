@@ -16,6 +16,7 @@ export const GET = protectedRoute(async ({ req }) => {
     departmentId: sp.get('departmentId') ?? undefined,
     isActive: active === null ? undefined : active === 'true',
     q: sp.get('q') ?? undefined,
+    limit: Number(sp.get('limit')) || undefined,
   }));
 }, { permission: PERMISSIONS.USER_READ });
 

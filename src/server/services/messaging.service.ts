@@ -9,6 +9,7 @@ import { assertPatientAccess } from './patient-access.service';
 import { notifyMany } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 /**
  * Internal, directed clinical communication. Not a social feed:
@@ -117,7 +118,7 @@ export async function createConversation(
   return conversation;
 }
 
-export async function getConversation(user: AuthUser, conversationId: string) {
+export async function getConversation(user: AuthUser, conversationId: string, limit?: number) {
   await assertParticipant(user.id, conversationId);
 
   const [conversation] = await db
@@ -162,7 +163,11 @@ export async function getConversation(user: AuthUser, conversationId: string) {
     .from(messages)
     .innerJoin(users, eq(users.id, messages.senderId))
     .where(eq(messages.conversationId, conversationId))
-    .orderBy(messages.createdAt);
+    // Newest first so the window is the tail of the thread, then reversed for
+    // display. Ordering ascending with a limit would return the oldest N and
+    // hide everything the participants actually came back to read.
+    .orderBy(desc(messages.createdAt))
+    .limit(boundedLimit(limit, 100));
 
   await db.update(conversationParticipants)
     .set({ lastReadAt: new Date() })
@@ -171,7 +176,7 @@ export async function getConversation(user: AuthUser, conversationId: string) {
       eq(conversationParticipants.userId, user.id),
     ));
 
-  return { ...conversation, participants, messages: thread };
+  return { ...conversation, participants, messages: thread.slice().reverse() };
 }
 
 export async function sendMessage(user: AuthUser, conversationId: string, body: string) {
@@ -229,6 +234,7 @@ export async function listStaffDirectory(excludeUserId?: string) {
     .leftJoin(staffProfiles, eq(staffProfiles.userId, users.id))
     .leftJoin(departments, eq(departments.id, staffProfiles.departmentId))
     .where(eq(users.isActive, true))
-    .orderBy(users.fullName);
+    .orderBy(users.fullName)
+    .limit(MAX_REFERENCE_ROWS);
   return excludeUserId ? rows.filter((r) => r.id !== excludeUserId) : rows;
 }

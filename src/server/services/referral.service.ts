@@ -13,6 +13,7 @@ import { recordTimelineEvent } from './timeline.service';
 import { notify } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_PAGE_SIZE, MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 export type ReferralStatus =
   | 'PENDING' | 'ACCEPTED' | 'IN_PROGRESS' | 'REQUESTED_INFORMATION'
@@ -143,7 +144,7 @@ export async function listReferrals(
       desc(sql`CASE ${referrals.priority} WHEN 'EMERGENCY' THEN 2 WHEN 'URGENT' THEN 1 ELSE 0 END`),
       desc(referrals.createdAt),
     )
-    .limit(Math.min(params.limit ?? 50, 200));
+    .limit(boundedLimit(params.limit, 50));
 }
 
 export async function getReferral(user: AuthUser, referralId: string) {
@@ -170,7 +171,8 @@ export async function getReferral(user: AuthUser, referralId: string) {
     .from(referralResponses)
     .innerJoin(users, eq(users.id, referralResponses.authorId))
     .where(eq(referralResponses.referralId, referralId))
-    .orderBy(desc(referralResponses.createdAt));
+    .orderBy(desc(referralResponses.createdAt))
+    .limit(MAX_PAGE_SIZE);
 
   return { ...row, responses };
 }
@@ -783,7 +785,8 @@ export async function listSpecialists(excludeUserId?: string) {
       eq(users.isActive, true),
       inArray(users.primaryRole, ['SENIOR_DOCTOR', 'JUNIOR_DOCTOR']),
     ))
-    .orderBy(departments.name, users.fullName);
+    .orderBy(departments.name, users.fullName)
+    .limit(MAX_REFERENCE_ROWS);
 
   return excludeUserId ? rows.filter((r) => r.id !== excludeUserId) : rows;
 }

@@ -9,6 +9,7 @@ import { assertPatientAccess } from './patient-access.service';
 import { recordTimelineEvent } from './timeline.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_PAGE_SIZE } from '@/server/core/pagination';
 
 /**
  * Storage abstraction.
@@ -156,7 +157,8 @@ export async function listAttachments(user: AuthUser, params: { patientId?: stri
       params.patientId ? eq(attachments.patientId, params.patientId) : undefined,
       params.referralId ? eq(attachments.referralId, params.referralId) : undefined,
     ))
-    .orderBy(desc(attachments.createdAt));
+    .orderBy(desc(attachments.createdAt))
+    .limit(MAX_PAGE_SIZE);
 }
 
 /* ------------------------------------------------- supabase driver ------ */

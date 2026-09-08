@@ -11,7 +11,8 @@ type P = { id: string };
 export const GET = protectedRoute<P>(async ({ req, user, params }) => {
   const raw = req.nextUrl.searchParams.get('type');
   const parsed = raw ? noteTypeSchema.safeParse(raw) : null;
-  return ok(await listClinicalNotes(user, params.id, parsed?.success ? parsed.data : undefined));
+  const limit = Number(req.nextUrl.searchParams.get('limit')) || undefined;
+  return ok(await listClinicalNotes(user, params.id, parsed?.success ? parsed.data : undefined, limit));
 }, { permission: PERMISSIONS.NOTE_READ });
 
 export const POST = protectedRoute<P>(async ({ req, user, params }) => {

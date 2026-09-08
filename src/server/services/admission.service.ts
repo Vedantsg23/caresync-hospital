@@ -12,6 +12,7 @@ import { recordTimelineEvent } from './timeline.service';
 import { notify } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_PAGE_SIZE, MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 export async function listWards(departmentId?: string) {
   return db
@@ -54,7 +55,8 @@ export async function listBeds(wardId?: string) {
     .leftJoin(admissions, and(eq(admissions.bedId, beds.id), eq(admissions.status, 'ADMITTED')))
     .leftJoin(patients, eq(patients.id, admissions.patientId))
     .where(wardId ? eq(beds.wardId, wardId) : undefined)
-    .orderBy(asc(wards.name), asc(beds.code));
+    .orderBy(asc(wards.name), asc(beds.code))
+    .limit(MAX_REFERENCE_ROWS);
 }
 
 export type CreateAdmissionInput = {
@@ -329,7 +331,7 @@ export async function listAdmissions(params: { status?: string[]; departmentId?:
     .innerJoin(users, eq(users.id, admissions.attendingDoctorId))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(admissions.admissionDate))
-    .limit(Math.min(params.limit ?? 100, 500));
+    .limit(boundedLimit(params.limit, 100));
 }
 
 export async function getAdmissionTransfers(admissionId: string) {
@@ -346,7 +348,8 @@ export async function getAdmissionTransfers(admissionId: string) {
     .leftJoin(wards, eq(wards.id, admissionTransfers.toWardId))
     .innerJoin(users, eq(users.id, admissionTransfers.performedById))
     .where(eq(admissionTransfers.admissionId, admissionId))
-    .orderBy(desc(admissionTransfers.transferredAt));
+    .orderBy(desc(admissionTransfers.transferredAt))
+    .limit(MAX_PAGE_SIZE);
 }
 
 export async function createWard(user: AuthUser, input: { code: string; name: string; departmentId: string; floor?: string; isCritical?: boolean }) {

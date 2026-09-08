@@ -35,4 +35,14 @@ Specifically:
 The production checklist in README.md lists what would have to change before
 this system could face anything other than invented data.
 
+## Third-party components
+
+The typefaces bundled in `src/app/fonts/` — Inter and JetBrains Mono — are
+distributed under the SIL Open Font License 1.1. The full licence text for each
+sits beside the font file it covers. They are served from this application's own
+origin rather than a font CDN, so no page view is reported to a third party.
+
+Everything else is the work of the dependencies declared in `package.json`,
+under their own licences.
+
 All rights reserved. No licence is granted for reuse or redistribution.

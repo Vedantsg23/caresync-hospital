@@ -11,6 +11,7 @@ import { nextPatientNumber } from './identifier.service';
 import { recordTimelineEvent } from './timeline.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_PAGE_SIZE } from '@/server/core/pagination';
 
 export function calculateAge(dob: Date): number {
   const now = new Date();
@@ -196,7 +197,8 @@ export async function getPatientHeader(user: AuthUser, patientId: string) {
     .from(careTeamMembers)
     .innerJoin(users, eq(users.id, careTeamMembers.userId))
     .where(and(eq(careTeamMembers.patientId, patientId), isNull(careTeamMembers.removedAt)))
-    .orderBy(asc(careTeamMembers.assignedAt));
+    .orderBy(asc(careTeamMembers.assignedAt))
+    .limit(MAX_PAGE_SIZE);
 
   const [latestVitals] = await db.select().from(vitalSigns)
     .where(eq(vitalSigns.patientId, patientId))
@@ -221,7 +223,8 @@ export async function getPatientHeader(user: AuthUser, patientId: string) {
 
   const contacts = await db.select().from(patientContacts)
     .where(eq(patientContacts.patientId, patientId))
-    .orderBy(desc(patientContacts.isPrimary));
+    .orderBy(desc(patientContacts.isPrimary))
+    .limit(MAX_PAGE_SIZE);
 
   return {
     ...patient,

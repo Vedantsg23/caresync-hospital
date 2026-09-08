@@ -11,6 +11,7 @@ import { nextStaffNumber } from './identifier.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import { ROLES, type Role } from '@/types/rbac';
 import type { AuthUser } from '@/server/auth/context';
+import { MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 export async function listDepartments() {
   return db
@@ -42,7 +43,7 @@ export async function createDepartment(user: AuthUser, input: { code: string; na
   return row!;
 }
 
-export async function listStaff(params: { role?: Role; departmentId?: string; isActive?: boolean; q?: string } = {}) {
+export async function listStaff(params: { role?: Role; departmentId?: string; isActive?: boolean; q?: string; limit?: number } = {}) {
   const conditions: SQL[] = [];
   if (params.role) conditions.push(eq(users.primaryRole, params.role));
   if (params.departmentId) conditions.push(eq(staffProfiles.departmentId, params.departmentId));
@@ -76,7 +77,8 @@ export async function listStaff(params: { role?: Role; departmentId?: string; is
     .leftJoin(staffProfiles, eq(staffProfiles.userId, users.id))
     .leftJoin(departments, eq(departments.id, staffProfiles.departmentId))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(users.fullName);
+    .orderBy(users.fullName)
+    .limit(boundedLimit(params.limit, 100));
 }
 
 export type CreateStaffInput = {
@@ -338,5 +340,6 @@ export async function listDoctors() {
     .innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
     .leftJoin(departments, eq(departments.id, staffProfiles.departmentId))
     .where(and(eq(users.isActive, true), inArray(users.primaryRole, ['SENIOR_DOCTOR', 'JUNIOR_DOCTOR'])))
-    .orderBy(users.fullName);
+    .orderBy(users.fullName)
+    .limit(MAX_REFERENCE_ROWS);
 }

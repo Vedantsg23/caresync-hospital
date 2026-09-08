@@ -12,6 +12,7 @@ import { notify } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
 import { patientVisibilityFilter } from '@/server/services/patient-access.service';
+import { MAX_REFERENCE_ROWS, boundedLimit } from '@/server/core/pagination';
 
 export type MedicationStatus =
   | 'PENDING' | 'ACTIVE' | 'STOPPED' | 'COMPLETED' | 'PENDING_DISPENSING' | 'DISPENSED';
@@ -261,7 +262,7 @@ export async function listMedicationOrders(params: {
     .leftJoin(beds, eq(beds.id, admissions.bedId))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(medicationOrders.createdAt))
-    .limit(Math.min(params.limit ?? 100, 300));
+    .limit(boundedLimit(params.limit, 100));
 }
 
 export async function getPatientMedications(user: AuthUser, patientId: string) {
@@ -283,6 +284,7 @@ export async function getPatientMedications(user: AuthUser, patientId: string) {
         .innerJoin(users, eq(users.id, medicationAdministrations.administeredById))
         .where(inArray(medicationAdministrations.medicationOrderId, ids))
         .orderBy(desc(medicationAdministrations.administeredAt))
+        .limit(MAX_REFERENCE_ROWS)
     : [];
   return orders.map((o) => ({ ...o, administrations: admins.filter((a) => a.medicationOrderId === o.id) }));
 }
