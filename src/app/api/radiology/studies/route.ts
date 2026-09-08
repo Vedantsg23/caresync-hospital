@@ -6,13 +6,13 @@ import { PERMISSIONS } from '@/types/rbac';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = protectedRoute(async ({ req }) => {
+export const GET = protectedRoute(async ({ req, user }) => {
   const q = parseQuery(req, listQuerySchema);
   return ok(await listRadiologyStudies({
     patientId: q.patientId,
     status: q.status ? (q.status.split(',').filter(Boolean) as ('ORDERED' | 'SCHEDULED' | 'IN_PROGRESS' | 'REPORTED' | 'CANCELLED')[]) : undefined,
     limit: q.limit,
-  }));
+  }, user));
 }, { permission: PERMISSIONS.RADIOLOGY_READ });
 
 export const POST = protectedRoute(async ({ req, user }) => {

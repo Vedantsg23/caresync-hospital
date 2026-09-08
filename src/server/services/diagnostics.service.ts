@@ -12,6 +12,7 @@ import { recordTimelineEvent } from './timeline.service';
 import { notifyMany } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { patientVisibilityFilter } from '@/server/services/patient-access.service';
 
 export type ResultFlag = 'NORMAL' | 'LOW' | 'HIGH' | 'CRITICAL_LOW' | 'CRITICAL_HIGH' | 'ABNORMAL';
 
@@ -212,9 +213,32 @@ export async function recordLabResults(user: AuthUser, orderId: string, results:
   return inserted;
 }
 
-export async function listLabOrders(params: { patientId?: string; status?: ('ORDERED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED')[]; limit?: number }) {
+/**
+ * The laboratory worklist.
+ *
+ * `viewer` is not optional in spirit: without it this returns orders for any
+ * patient whose id the caller can guess, together with that patient's name and
+ * number. Holding `lab:read` says you may look at laboratory work; it does not
+ * say which patients you may look at. The visibility predicate is the same one
+ * patient search uses, so a pathologist still sees the whole lab worklist —
+ * their access flows from the order existing — while a ward nurse sees only
+ * their own patients' orders.
+ */
+export async function listLabOrders(
+  params: { patientId?: string; status?: ('ORDERED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED')[]; limit?: number },
+  viewer?: AuthUser,
+) {
+  // A patient-scoped worklist query is a direct object reference: the caller has
+  // named a specific patient, so it is answered the way every other patient read
+  // is answered — a denial that is audited, not a silently empty list. The
+  // visibility filter below still applies, and covers the unscoped worklist.
+  if (viewer && params.patientId) await assertPatientAccess(viewer, params.patientId);
   const conditions = [eq(investigationOrders.category, 'LAB' as const)];
   if (params.patientId) conditions.push(eq(investigationOrders.patientId, params.patientId));
+  if (viewer) {
+    const visible = patientVisibilityFilter(viewer);
+    if (visible) conditions.push(visible);
+  }
   if (params.status?.length) conditions.push(inArray(investigationOrders.status, params.status));
 
   return db
@@ -451,9 +475,22 @@ export async function updateStudyStatus(user: AuthUser, studyId: string, status:
   return updated!;
 }
 
-export async function listRadiologyStudies(params: { patientId?: string; status?: ('ORDERED' | 'SCHEDULED' | 'IN_PROGRESS' | 'REPORTED' | 'CANCELLED')[]; limit?: number }) {
+/** The imaging worklist. Visibility-filtered for the same reason as the lab one. */
+export async function listRadiologyStudies(
+  params: { patientId?: string; status?: ('ORDERED' | 'SCHEDULED' | 'IN_PROGRESS' | 'REPORTED' | 'CANCELLED')[]; limit?: number },
+  viewer?: AuthUser,
+) {
+  // A patient-scoped worklist query is a direct object reference: the caller has
+  // named a specific patient, so it is answered the way every other patient read
+  // is answered — a denial that is audited, not a silently empty list. The
+  // visibility filter below still applies, and covers the unscoped worklist.
+  if (viewer && params.patientId) await assertPatientAccess(viewer, params.patientId);
   const conditions = [];
   if (params.patientId) conditions.push(eq(radiologyStudies.patientId, params.patientId));
+  if (viewer) {
+    const visible = patientVisibilityFilter(viewer);
+    if (visible) conditions.push(visible);
+  }
   if (params.status?.length) conditions.push(inArray(radiologyStudies.status, params.status));
 
   const studies = await db

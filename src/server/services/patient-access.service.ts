@@ -158,7 +158,11 @@ export function patientVisibilityFilter(user: AuthUser) {
       WHERE a.patient_id = ${patients.id} AND a.status = 'ADMITTED' AND a.department_id = sp.department_id)`);
   }
 
-  return sql.join(clauses, sql` OR `);
+  // Parenthesised at the source. These clauses are OR-ed together, and OR binds
+  // looser than AND: handed to `and(...)` unwrapped, `a AND b AND (x OR y)`
+  // silently becomes `(a AND b AND x) OR y` and the filter stops filtering.
+  // Making the predicate self-contained means no caller can get that wrong.
+  return sql`(${sql.join(clauses, sql` OR `)})`;
 }
 
 /** Grants scoped access — e.g. when a specialist accepts a referral. */

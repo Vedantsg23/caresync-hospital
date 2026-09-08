@@ -11,6 +11,7 @@ import { recordTimelineEvent } from './timeline.service';
 import { notify } from './notification.service';
 import { recordAudit, AUDIT } from '@/server/core/audit';
 import type { AuthUser } from '@/server/auth/context';
+import { patientVisibilityFilter } from '@/server/services/patient-access.service';
 
 export type MedicationStatus =
   | 'PENDING' | 'ACTIVE' | 'STOPPED' | 'COMPLETED' | 'PENDING_DISPENSING' | 'DISPENSED';
@@ -212,11 +213,21 @@ export async function administerMedication(
   return admin!;
 }
 
+/** The dispensing worklist. Visibility-filtered like the other two. */
 export async function listMedicationOrders(params: {
   patientId?: string; status?: MedicationStatus[]; limit?: number;
-}) {
+}, viewer?: AuthUser) {
+  // A patient-scoped worklist query is a direct object reference: the caller has
+  // named a specific patient, so it is answered the way every other patient read
+  // is answered — a denial that is audited, not a silently empty list. The
+  // visibility filter below still applies, and covers the unscoped worklist.
+  if (viewer && params.patientId) await assertPatientAccess(viewer, params.patientId);
   const conditions = [];
   if (params.patientId) conditions.push(eq(medicationOrders.patientId, params.patientId));
+  if (viewer) {
+    const visible = patientVisibilityFilter(viewer);
+    if (visible) conditions.push(visible);
+  }
   if (params.status?.length) conditions.push(inArray(medicationOrders.status, params.status));
 
   return db

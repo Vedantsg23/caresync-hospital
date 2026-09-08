@@ -6,13 +6,13 @@ import { PERMISSIONS } from '@/types/rbac';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = protectedRoute(async ({ req }) => {
+export const GET = protectedRoute(async ({ req, user }) => {
   const q = parseQuery(req, listQuerySchema);
   return ok(await listMedicationOrders({
     patientId: q.patientId,
     status: q.status ? (q.status.split(',').filter(Boolean) as MedicationStatus[]) : undefined,
     limit: q.limit,
-  }));
+  }, user));
 }, { permission: PERMISSIONS.MEDICATION_READ });
 
 /** Blocked when the medicine collides with a recorded allergy. */
