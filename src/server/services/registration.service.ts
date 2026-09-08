@@ -11,6 +11,7 @@ import { sendQuietly } from '@/server/mail';
 import { nextStaffNumber } from '@/server/services/identifier.service';
 import { getEnv } from '@/lib/env';
 import { ROLES, type Role } from '@/types/rbac';
+import type { AuthUser } from '@/server/auth/context';
 
 /**
  * Account creation for a real hospital deployment.
@@ -152,7 +153,9 @@ export async function register(
 
   await recordAudit({
     action: AUDIT.REGISTRATION_SUBMITTED, entityType: 'user', entityId: created.id,
-    outcome: 'SUCCESS',
+    // Nobody administrative acted here, but the applicant did, and an audit row
+    // that says "system" submitted a registration is a row that answers nothing.
+    userId: created.id, outcome: 'SUCCESS',
     metadata: { email, requestedRole: input.requestedRole },
     ipAddress: context.ipAddress, userAgent: context.userAgent,
   });
@@ -287,8 +290,18 @@ export async function listPendingAccounts(options: { limit?: number; cursor?: st
  * is written from a registration, and it takes the role from the *approver's*
  * input, never from what the applicant asked for.
  */
+/**
+ * Who performed an account-lifecycle action.
+ *
+ * The email and role are carried, not just the id, because `recordAudit` writes
+ * `actor_email` and `actor_role` onto the row and a trail that reads
+ * "ACCOUNT_REJECTED · system" cannot answer the only question anyone asks of
+ * it: which administrator did this.
+ */
+type Approver = Pick<AuthUser, 'id' | 'email' | 'role'>;
+
 export async function approveAccount(
-  approver: { id: string; role: Role },
+  approver: Approver,
   input: {
     userId: string;
     role: Role;
@@ -373,7 +386,7 @@ export async function approveAccount(
   });
 
   await recordAudit({
-    action: AUDIT.ACCOUNT_APPROVED, userId: approver.id, entityType: 'user', entityId: user.id,
+    action: AUDIT.ACCOUNT_APPROVED, actor: approver, entityType: 'user', entityId: user.id,
     outcome: 'SUCCESS',
     metadata: { email: user.email, grantedRole: input.role, departmentId: input.departmentId ?? null },
     ipAddress: context.ipAddress, userAgent: context.userAgent,
@@ -383,7 +396,7 @@ export async function approveAccount(
 }
 
 export async function rejectAccount(
-  approver: { id: string },
+  approver: Approver,
   input: { userId: string; reason: string },
   context: { ipAddress?: string | null; userAgent?: string | null } = {},
 ) {
@@ -423,7 +436,7 @@ export async function rejectAccount(
   });
 
   await recordAudit({
-    action: AUDIT.ACCOUNT_REJECTED, userId: approver.id, entityType: 'user', entityId: user.id,
+    action: AUDIT.ACCOUNT_REJECTED, actor: approver, entityType: 'user', entityId: user.id,
     outcome: 'SUCCESS', metadata: { email: user.email, reason: input.reason },
     ipAddress: context.ipAddress, userAgent: context.userAgent,
   });

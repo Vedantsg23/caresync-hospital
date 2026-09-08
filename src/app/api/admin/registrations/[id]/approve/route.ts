@@ -17,7 +17,7 @@ type P = { id: string };
 export const POST = protectedRoute<P>(async ({ req, user, params, ip, userAgent }) => {
   const body = await parseBody(req, approveAccountSchema);
   const result = await approveAccount(
-    { id: user.id, role: user.role },
+    user,
     {
       userId: params.id,
       role: body.role,

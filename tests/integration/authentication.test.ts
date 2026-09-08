@@ -216,7 +216,7 @@ describe('production authentication', () => {
       const { email, id } = await applicant('SENIOR_DOCTOR');
 
       // The applicant asked to be a senior doctor; the administrator says nurse.
-      await approveAccount({ id: admin.id, role: admin.role }, {
+      await approveAccount(admin, {
         userId: id, role: 'NURSE', departmentId: generalMedicineId, designation: 'Staff Nurse',
       });
 
@@ -234,7 +234,7 @@ describe('production authentication', () => {
 
     it('stops a hospital administrator from minting another administrator', async () => {
       const { id } = await applicant();
-      const hospitalAdmin = { id: admin.id, role: 'HOSPITAL_ADMIN' as const };
+      const hospitalAdmin = { id: admin.id, email: admin.email, role: 'HOSPITAL_ADMIN' as const };
 
       for (const role of ['SUPER_ADMIN', 'HOSPITAL_ADMIN'] as const) {
         await expect(approveAccount(hospitalAdmin, { userId: id, role }))
@@ -245,9 +245,27 @@ describe('production authentication', () => {
       expect(row!.status).not.toBe('ACTIVE');
     });
 
+    it('names the administrator on the audit row, not "system"', async () => {
+      // Found in production: the approval and rejection rows carried no actor,
+      // so the trail read "ACCOUNT_REJECTED · system" and could not answer the
+      // only question anyone asks of an audit trail — which administrator did
+      // this. An audit row that does not name the actor is not an audit row.
+      const { id } = await applicant();
+      await rejectAccount(admin, { userId: id, reason: 'Not a member of staff.' });
+
+      const [entry] = await db.select().from(auditLogs)
+        .where(and(eq(auditLogs.action, 'ACCOUNT_REJECTED'), eq(auditLogs.entityId, id)))
+        .limit(1);
+
+      expect(entry, 'a rejection must be audited').toBeTruthy();
+      expect(entry!.actorEmail).toBe(admin.email);
+      expect(entry!.userId).toBe(admin.id);
+      expect(entry!.actorRole).toBe(admin.role);
+    });
+
     it('rejection blocks sign-in and records the reason', async () => {
       const { email, id } = await applicant();
-      await rejectAccount({ id: admin.id }, { userId: id, reason: 'Not a member of staff.' });
+      await rejectAccount(admin, { userId: id, reason: 'Not a member of staff.' });
 
       const [row] = await db.select().from(users).where(eq(users.id, id));
       expect(row!.status).toBe('REJECTED');
@@ -260,7 +278,7 @@ describe('production authentication', () => {
 
     it('a rejected account cannot recover itself through password reset', async () => {
       const { email, id } = await applicant();
-      await rejectAccount({ id: admin.id }, { userId: id, reason: 'Revoked.' });
+      await rejectAccount(admin, { userId: id, reason: 'Revoked.' });
 
       outbox.clear();
       await requestPasswordReset(email);

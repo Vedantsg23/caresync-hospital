@@ -197,7 +197,7 @@ describe('security: insecure direct object references', () => {
 
       if (pending) {
         await expect(approveAccount(
-          { id: admin.id, role: 'HOSPITAL_ADMIN' },
+          { id: admin.id, email: admin.email, role: 'HOSPITAL_ADMIN' },
           { userId: pending.id, role: 'SUPER_ADMIN' },
         )).rejects.toMatchObject({ code: 'FORBIDDEN' });
       }
