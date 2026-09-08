@@ -14,19 +14,24 @@ never have to ask *"where is the information?"*
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.44-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/tests-137_passing-3fb950)](#testing)
+[![Tests](https://img.shields.io/badge/tests-204_passing-3fb950)](#testing)
 
-### ▶ [**Try it live — caresync-hospital.vercel.app**](https://caresync-hospital.vercel.app)
+### ▶ [**caresync-hospital.vercel.app**](https://caresync-hospital.vercel.app)
 
-**Sign in with any account below. The password for all of them is `CareSync#2026`.**
-The sign-in page lists them too — one click fills the form.
+**That deployment starts empty, on purpose.** There are no demo accounts on it and
+no shared password — an account exists there because a person asked for one and an
+administrator granted it. Registration is self-service; privilege never is.
+See [Deployment](docs/DEPLOYMENT.md) for how the first administrator is created.
 
-| Role | Email | Sees |
-| --- | --- | --- |
-| Senior doctor | `doctor@caresync.demo` | Their caseload, referrals they raised |
-| Specialist (Cardiology) | `specialist@caresync.demo` | Referrals sent **to** them |
-| Nurse | `nurse@caresync.demo` | Their ward, observations due |
-| Hospital administrator | `admin@caresync.demo` | The whole hospital, audit trail |
+**To see the system working, run the demonstration hospital locally.** It takes
+three commands and builds a whole hospital — wards, staff across every role,
+patients mid-admission, results, a referral in flight:
+
+```bash
+cp .env.example .env    # set DATABASE_URL, and AUTH_SECRET from: openssl rand -base64 48
+npm install && npm run db:setup
+npm run dev             # sign in as doctor@caresync.demo / CareSync#2026
+```
 
 **The two-minute tour:** sign in as **doctor@caresync.demo**, open **Rahul Mehta**
 (PT-2026-00142), and press **Refer to specialist** — pick Dr. Priya Mehta. Then sign in as
@@ -36,7 +41,7 @@ chart as a specialist note. That loop is the point of the whole system.
 
 Try the other accounts too, and notice what each one **cannot** reach. The nurse has no
 prescribing button. Pathology sees only patients with a laboratory order. Authorization is
-enforced in the database, not by hiding buttons.
+enforced in the database, not by hiding buttons — and a test suite attacks it to prove so.
 
 *Demonstration data. Every patient, clinician and result is invented — see [NOTICE](NOTICE).*
 
@@ -62,6 +67,18 @@ enforced in the database, not by hiding buttons.
 - [Deployment](#deployment)
 - [Limitations](#limitations)
 - [Licence and use](#licence-and-use)
+
+**Reference documents**
+
+| | |
+| --- | --- |
+| [docs/API.md](docs/API.md) | Every endpoint, its permission and its shapes |
+| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Registration, approval, invitation, reset, sessions |
+| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, the three authorization layers, the IDOR audit, and what is still weak |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploying to an empty database and creating the first administrator |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Profiling at 50,000 patients: what was slow, why, and by how much it improved |
+| [docs/LOAD_TESTING.md](docs/LOAD_TESTING.md) | Measured throughput and latency — and what those numbers do not prove |
+| [docs/SCALING.md](docs/SCALING.md) | What breaks first, in order |
 
 ---
 
@@ -312,18 +329,39 @@ data drift.
 
 ## Security model
 
-> This is a demonstration platform with invented patient data. It is not a clinically
-> validated system and has not been through any regulatory assessment.
+> Not a clinically validated system, and it has not been through any regulatory
+> assessment. [docs/SECURITY.md](docs/SECURITY.md) has the full threat model,
+> the IDOR audit, and an explicit list of what is still weak.
+
+### Accounts
+
+There are no predefined accounts and no shared password in a deployment. The
+rule that shapes everything else:
+
+> **Registration is self-service. Privilege is not.**
+
+A registration writes `requested_role` and never `primary_role`. The only code
+paths that write `primary_role` are approval by someone holding `user:approve`
+and acceptance of an invitation issued by someone holding `user:invite`. An
+attacker who posts `{"primaryRole": "HOSPITAL_ADMIN"}` gets an inactive nurse
+account awaiting approval, exactly like everyone else.
+
+Full lifecycle — verification, approval, invitation, reset, first-administrator
+bootstrap — in [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md).
 
 ### Authentication
 
 - bcrypt password hashing (cost 12) with a minimum-strength policy.
 - Sessions are signed JWTs in an `httpOnly`, `Secure`, `SameSite=Lax` cookie, **and** a
   row in `sessions`. Revoking the row kills the session immediately — a stolen token is
-  useless after sign-out, a password change, a role change or deactivation.
+  useless after sign-out, a password change, a role change or deactivation. An absolute
+  ceiling (`SESSION_ABSOLUTE_MAX_AGE`) is one that activity cannot extend.
 - A failed sign-in cannot be distinguished from an unknown account, so the endpoint
-  cannot be used to enumerate staff.
+  cannot be used to enumerate staff. Account state is checked *after* the password,
+  for the same reason.
 - Repeated failures lock the account temporarily; the login endpoint is rate limited per IP.
+- Verification, reset and invitation tokens are SHA-256 hashed at rest, single-use,
+  expiring, and claimed in one atomic UPDATE so two requests cannot both succeed.
 
 ### Authorization — three independent layers
 
@@ -345,6 +383,14 @@ data drift.
 of the SQL, so an unauthorised record cannot appear in a result set — searching an exact
 patient number you have no relationship to returns nothing.
 
+`tests/integration/security.test.ts` attacks this from the outside: 37 cases that
+each supply an identifier the caller is not entitled to. It found a real
+vulnerability — three worklists (laboratory, radiology, pharmacy) applied no
+visibility filter, so any account with `lab:read` could pass `?patientId=` and
+read another patient's orders, name and hospital number. Reading the routes
+would not have found it; they looked correct and each had a permission check.
+[docs/SECURITY.md](docs/SECURITY.md) has the finding and both fixes.
+
 ### Data integrity
 
 - `audit_logs` is append-only; a database trigger rejects `UPDATE` and `DELETE`.
@@ -360,7 +406,18 @@ patient number you have no relationship to returns nothing.
   interpolated (sequence names) uses an allow-list and re-checks the result.
 - Uploaded documents are never in a public bucket. Downloads go through an authenticated
   route that re-checks patient access and audits the read, so a shared URL grants nothing.
-- Security headers set globally; `X-Powered-By` removed; API responses `no-store`.
+- A Content-Security-Policy built per request around a fresh nonce, with
+  `strict-dynamic` — no `unsafe-inline` for scripts, because a policy containing
+  it permits exactly the injection it exists to stop. Fonts are served from this
+  origin rather than a third-party CDN, so no page view of a hospital system
+  reports its reader's IP to another company. HSTS, `X-Frame-Options: DENY`,
+  COOP/CORP, `X-Powered-By` removed, API responses `no-store`.
+- JSON request logs with a request id, whose fields are **allow-listed** rather
+  than deny-listed: no patient data can reach a log, because nobody can
+  enumerate every field that might carry it. Logs say which request failed,
+  never whose record it was — for that there is the audit trail.
+- Every list query has a hard `LIMIT` at the service layer, so no caller can ask
+  the database for an unbounded result set.
 - No secret is exposed to the browser. Server modules carry a guard that throws if they
   are ever pulled into a client bundle.
 
@@ -384,12 +441,15 @@ cp .env.example .env
 # Set DATABASE_URL, and generate a secret:
 #   openssl rand -base64 48   →  AUTH_SECRET
 
-npm run db:migrate     # create the schema
-npm run db:seed        # load the demonstration hospital
+npm run db:setup       # migrate, then load the demonstration hospital
 npm run dev            # http://localhost:3000
 ```
 
 Sign in with `doctor@caresync.demo` / `CareSync#2026`.
+
+To stand up a **real** instance instead — empty database, no demo accounts, first
+administrator created by you — follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+That is what `npm run vercel-build` does: migrations, then build, and no seed.
 
 ### Try the primary workflow
 
@@ -411,7 +471,13 @@ Sign in with `doctor@caresync.demo` / `CareSync#2026`.
 
 ## Demo accounts
 
-Every account uses the password **`CareSync#2026`**.
+**These exist only when you run `npm run db:seed`, which is a development
+command.** A deployment has none of them: `npm run db:seed` refuses to run when
+`NODE_ENV=production`, and the build command does not call it. Invented patients
+must never sit in a database where a real one could be looked up, and a
+shared-password account must never exist alongside real records.
+
+Locally, every seeded account uses the password **`CareSync#2026`**.
 
 | Role | Email | Person | Lands on |
 | --- | --- | --- | --- |
@@ -425,9 +491,9 @@ Every account uses the password **`CareSync#2026`**.
 | Hospital admin | `admin@caresync.demo` | Neha Kulkarni | `/admin` |
 | HR admin | `hr@caresync.demo` | Sanjay Rao | `/admin/staff` |
 
-> **Development credentials only.** Before any deployment that is not a public
-> demonstration, set `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=false` and reseed with a private
-> `SEED_DEMO_PASSWORD`.
+> The one-click panel on the sign-in screen appears only when
+> `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` is exactly `"true"` — anything else, including
+> an empty value, leaves it off. That is the default.
 
 Sign in as different roles to see authorization working: the HR administrator has no
 clinical access at all, a nurse cannot prescribe, pathology cannot write a radiology
@@ -437,26 +503,50 @@ report, and none of them can read the audit trail.
 
 ## Environment variables
 
+Only two have no working default. Everything else below is optional, and the
+defaults are the safe choice: mail is recorded rather than sent, rate limits are
+per-instance, the AI layer is the offline summariser, and no demo account
+exists. Full annotated list in [`.env.example`](.env.example).
+
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | ✅ | — | PostgreSQL connection string |
-| `DIRECT_URL` | | — | Non-pooled URL for migrations (Supabase / Neon) |
+| `DATABASE_URL` | ✅ | — | PostgreSQL connection string (pooled) |
 | `AUTH_SECRET` | ✅ | — | Session signing key, 32+ chars. `openssl rand -base64 48` |
-| `SESSION_MAX_AGE` | | `28800` | Session lifetime in seconds (8 h, one shift) |
-| `NEXT_PUBLIC_APP_URL` | | `http://localhost:3000` | Public base URL |
-| `SEED_DEMO_PASSWORD` | | `CareSync#2026` | Password applied to seeded accounts |
-| `SEED_FORCE` | | `false` | Allow seeding a non-empty database (destructive) |
+| `DIRECT_URL` | | — | Non-pooled URL for migrations (Supabase / Neon) |
+| `DB_POOL_MAX` | | `5` | Pooled connections per instance — small on purpose, see [Scaling](docs/SCALING.md) |
+| `APP_ORIGIN` | | — | Public origin used in email links. Set it, or links point at localhost |
+| `BOOTSTRAP_TOKEN` | | — | One-time token to create the first administrator, then remove |
+| `SESSION_MAX_AGE` | | `28800` | Idle session lifetime in seconds (8 h, one shift) |
+| `SESSION_ABSOLUTE_MAX_AGE` | | `604800` | Ceiling a session cannot be renewed past |
+| `MAIL_DRIVER` | | `console` | `console` (records, does not send), `resend`, `smtp` |
+| `MAIL_FROM` / `RESEND_API_KEY` / `SMTP_URL` | | — | Provider configuration |
+| `REDIS_URL` / `REDIS_TOKEN` | | — | Upstash REST credentials. **Set these if you run more than one instance** |
+| `LOG_LEVEL` | | `info` in prod | `debug` \| `info` \| `warn` \| `error` |
 | `AI_PROVIDER` | | `heuristic` | `heuristic` (offline), `anthropic`, or `openai` |
-| `AI_API_KEY` | | — | Required only for a hosted AI provider |
-| `AI_MODEL` | | vendor default | Model identifier for a hosted provider |
+| `AI_API_KEY` / `AI_MODEL` | | — | Required only for a hosted AI provider |
 | `STORAGE_DRIVER` | | `database` | `database`, `local`, or `supabase` |
 | `STORAGE_MAX_FILE_MB` | | `10` | Upload size limit |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | | — | Required for `STORAGE_DRIVER=supabase` |
 | `RATE_LIMIT_LOGIN_PER_MIN` | | `10` | Sign-in attempts per IP per minute |
 | `RATE_LIMIT_API_PER_MIN` | | `300` | API requests per user per route per minute |
-| `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | | `true` | Show the demo-account panel on the login screen |
+| `RATE_LIMIT_REGISTER_PER_HOUR` | | `5` | Registrations per IP per hour |
+| `RATE_LIMIT_RESET_PER_HOUR` | | `5` | Password-reset requests per IP per hour |
 
-`.env` is git-ignored. Never commit it.
+**Development only — never set these on a deployment holding real data:**
+`SEED_DEMO_PASSWORD`, `SEED_FORCE`, `SEED_ALLOW_PRODUCTION`,
+`NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS`, `NEXT_PUBLIC_DEMO_PASSWORD`. The demo-account
+panel on the sign-in screen appears only when
+`NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` is exactly `"true"`, and `npm run db:seed`
+refuses to run when `NODE_ENV=production`.
+
+> A variable set to an **empty string** is not the same as an unset one. Zod's
+> `.default()` fires on `undefined`, not on `""`, so an empty value in a hosting
+> dashboard used to defeat every default and take sign-in down with a `500`.
+> `src/lib/env.ts` now strips empty values before validating — but set a
+> variable properly or delete it; do not leave it blank.
+
+`.env` is git-ignored. Never commit it. CI fails the build on credential-shaped
+strings anywhere in the repository.
 
 ---
 
@@ -466,11 +556,11 @@ report, and none of them can read the audit trail.
 | --- | --- |
 | `npm run dev` | Development server on port 3000 |
 | `npm run build` | Production build |
-| `npm run vercel-build` | Migrate, seed if the database is empty, then build. Vercel runs this |
+| `npm run vercel-build` | Migrate, then build. **No seed** — a deployment starts empty |
 | `npm start` | Serve the production build |
 | `npm run db:migrate` | Apply every migration in `database/migrations` |
 | `npm run db:seed` | Load the demonstration hospital. Refuses a non-empty database |
-| `npm run db:seed:if-empty` | Same, but a no-op success if the database already has data |
+| `npm run db:seed:if-empty` | Same, but a no-op success if the database already has data. Not used by the production build |
 | `npm run db:setup` | Migrate then seed |
 | `npm run db:reset` | Drop and recreate the schema (development only) |
 | `npm run db:generate` | Generate a migration from schema changes |
@@ -486,12 +576,12 @@ report, and none of them can read the audit trail.
 
 ## Testing
 
-**137 tests, all passing.**
+**204 tests, all passing.**
 
 ```bash
 npm run test:unit          # 56 tests, no database required
 createdb caresync_test     # then point .env.test at it
-npm run test:integration   # 81 tests against real PostgreSQL
+npm run test:integration   # 148 tests against real PostgreSQL
 ```
 
 Integration tests refuse to run unless `DATABASE_URL` names a test database, then migrate
@@ -508,6 +598,12 @@ and seed it themselves.
 | `integration/patient-access` | Who may open a record, search leakage, denial auditing, grants |
 | `integration/clinical-workflows` | Vitals, notes, pathology, radiology, pharmacy, admissions, administration, AI, auth |
 | `integration/aggregates` | Every dashboard figure compared against independently computed SQL |
+| `integration/authentication` | Registration, verification, approval, rejection, invitation, reset, session rotation, bootstrap — 30 cases |
+| `integration/security` | **Written as an attacker** — 37 cases that each supply an identifier the caller is not entitled to. This suite found a real IDOR; see [docs/SECURITY.md](docs/SECURITY.md) |
+
+Load and query profiling are separate and are not part of `npm test`:
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md) and
+[docs/LOAD_TESTING.md](docs/LOAD_TESTING.md).
 
 ---
 
@@ -611,103 +707,83 @@ Full request and response shapes: **[`docs/API.md`](docs/API.md)**.
 
 ## Deployment
 
-### Vercel
+**Full guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).** The short version.
 
-The repository ships a `vercel-build` script, which Vercel prefers over `build`:
+A deployment starts **empty**. No patients, no staff, no demo accounts, no shared
+password. `npm run vercel-build` runs `npm run db:migrate && next build` —
+migrations, then the build, and no seed. Migrations are additive and idempotent,
+so redeploying is safe and repeated builds are no-ops for the database.
 
-```
-npm run db:migrate && npm run db:seed:if-empty && next build
-```
+### 1. Configure
 
-So the deployment prepares its own database. The **first** build applies every migration
-and seeds the demo hospital; **every later build** applies any new migrations, finds the
-database already populated, leaves it alone and carries on. `--if-empty` is the whole
-difference between a build that is safe to repeat and one that wipes your data on every
-push.
+Two variables have no default: `DATABASE_URL` (pooled) and `AUTH_SECRET`
+(`openssl rand -base64 48`). Set `APP_ORIGIN` so email links point at the right
+host, `BOOTSTRAP_TOKEN` for step 2, a real `MAIL_DRIVER` if people are to receive
+verification emails, and `REDIS_URL`/`REDIS_TOKEN` if you run more than one
+instance. Leave every `SEED_*` and `NEXT_PUBLIC_DEMO_*` variable unset.
 
-1. Import the repository at [vercel.com/new](https://vercel.com/new).
-2. Add environment variables (Settings → Environment Variables), applied to
-   **Production, Preview and Development**:
+On Vercel, set the Build Command to `npm run vercel-build`. Note that Vercel
+applies environment variables **at build time** — adding one changes nothing
+until a new build runs, so after editing variables use
+**Deployments → ⋯ → Redeploy**.
 
-   | Variable | Value |
-   | --- | --- |
-   | `DATABASE_URL` | Your pooled PostgreSQL connection string |
-   | `AUTH_SECRET` | A fresh 32+ character random value — `openssl rand -base64 48` |
-   | `NEXT_PUBLIC_APP_URL` | `https://<your-project>.vercel.app` |
-   | `SEED_DEMO_PASSWORD` | Password for the seeded demo accounts |
-   | `NEXT_PUBLIC_DEMO_PASSWORD` | The same value, so the login page's demo buttons work |
-   | `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | `true` for a public demo, `false` otherwise |
+### 2. Create the first administrator
 
-   Leave `SEED_FORCE` unset. Setting it to `true` makes every deploy wipe and reseed.
-
-3. Deploy. Watch the build log for `Seeded:` on the first run.
-
-Use a **pooled** connection string on serverless (Supabase Session Pooler, or Neon's
-`-pooler` endpoint) and put the direct URL in `DIRECT_URL` for migrations.
-
-To reset the demo data later, set `SEED_FORCE=true`, redeploy once, then remove it again.
-
-### If sign-in fails after deploying
-
-Call `/api/health` first. It answers the two questions that account for nearly every
-failed deployment:
+The database is empty, so there is nobody to sign in as and nobody to approve the
+first registration. This breaks that circle exactly once:
 
 ```bash
-curl https://<your-app>.vercel.app/api/health
+curl -X POST https://your-host/api/auth/bootstrap \
+  -H 'content-type: application/json' \
+  -d '{"token":"<BOOTSTRAP_TOKEN>","email":"you@hospital.org",
+       "fullName":"Your Name","password":"a password only you know"}'
 ```
 
-```json
-{ "success": true, "data": { "status": "ok", "database": "connected", "configuration": "ok" } }
+The token is compared in constant time, and the endpoint **refuses to run once
+any active administrator exists** — it cannot be used to add a second way in
+later. Remove `BOOTSTRAP_TOKEN` afterwards.
+
+Then sign in and create departments, wards and beds; staff and admissions
+reference them.
+
+### 3. Let people in
+
+They register at `/register` and you approve at `/admin/registrations`, choosing
+the role and department actually granted — which need not be what they asked
+for. Or you invite them from `/admin/staff`, having already chosen the role, and
+they set their own password.
+
+### 4. Verify
+
+```bash
+curl https://your-host/api/health      # configuration and reachability
+curl https://your-host/api/health/db   # pool, latency, migrations, drivers
 ```
 
-A `503` names the problem rather than hiding it:
-
-| What it says | What happened |
-| --- | --- |
-| `"configuration": ["AUTH_SECRET"]` | That variable is missing or too short. Add it, then **redeploy**. |
-| a variable you thought you set | Check it isn't saved blank. A blank value counts as unset, so any default applies — but a variable with no default still fails. |
-| `"database": "unreachable"` | `DATABASE_URL` is wrong, or the database is asleep or firewalled. |
-
-**Vercel applies environment variables at build time.** Adding one to project settings
-changes nothing until a new build runs — the old deployment keeps the old values, so
-sign-in keeps failing and the page keeps serving stale `NEXT_PUBLIC_*` values. After
-adding or editing variables, go to **Deployments → ⋯ → Redeploy**.
-
-The variable *names* are reported; the values never are.
-
-### If sign-in returns 401 with the password you expect
-
-`/api/health` says `configuration: ok`, the API returns `401 INVALID_CREDENTIALS`
-rather than a 500, and yet the demo password is rejected. That combination means the
-accounts exist but were hashed with a different password: the seed uses whatever
-`SEED_DEMO_PASSWORD` held **on the build that first populated the database**, and later
-changing that variable does not rewrite existing hashes.
-
-Force a reseed with a password you know:
-
-1. Set `SEED_DEMO_PASSWORD` to the value you want, and `SEED_FORCE=true`.
-2. Redeploy. The build wipes the demo data and recreates it with that password.
-3. **Delete `SEED_FORCE` and redeploy again.** Left in place it wipes the database on
-   every future deploy, which is why it is not the default.
-
-If the demo buttons are missing from the sign-in page, that is a separate variable:
-`NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` must be `true`, and `NEXT_PUBLIC_DEMO_PASSWORD` must
-match `SEED_DEMO_PASSWORD`. Both are baked in at build time, so they need a redeploy too.
+`/api/health` names any offending **variables** — names only, never values — so a
+misconfigured deployment says what is wrong instead of returning an opaque 500.
+`/api/health/db` reports `migrationsApplied` (should match the file count in
+`database/migrations/`), which limiter and mail driver are really in use, and
+pool `total`/`idle`/`waiting`. **`waiting` above zero for any sustained period is
+pool exhaustion**, and is the one number worth alerting on.
 
 ### Anywhere else
 
-The app is a standard Next.js server. `npm run build && npm start` behind any Node host
-works, as does a container. The only external dependency is PostgreSQL.
+`npm ci && npm run db:migrate && npm run build && npm start` on any Node 20+
+host. The only external dependency is PostgreSQL. The application is stateless —
+sessions live in the database and realtime updates poll a database cursor — so
+instances can be added, killed and replaced freely.
 
 ### Production checklist
 
 - [ ] `AUTH_SECRET` is a fresh 32+ character random value, not the example
-- [ ] `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=false`
-- [ ] Reseeded with a private `SEED_DEMO_PASSWORD`, or demo accounts removed
+- [ ] No `SEED_*` or `NEXT_PUBLIC_DEMO_*` variable is set
+- [ ] `BOOTSTRAP_TOKEN` removed after the first administrator exists
+- [ ] `MAIL_DRIVER` is `resend` or `smtp`, and `APP_ORIGIN` is your real host
+- [ ] `REDIS_URL` set if more than one instance runs
 - [ ] `SELECT caresync_force_rls();` run, with the app on a dedicated non-owner role
 - [ ] `STORAGE_DRIVER=supabase` (or S3) rather than storing documents in Postgres
-- [ ] A shared rate-limit store if you run more than one instance
-- [ ] Backups and point-in-time recovery configured on the database
+- [ ] Backups and point-in-time recovery configured, and a restore actually tested
 
 ---
 
@@ -717,7 +793,12 @@ Stated plainly, because a healthcare tool should be honest about what it is not:
 
 - **Not clinically validated.** A demonstration of a coordination workflow, not a medical device.
 - **The early-warning score is illustrative.** It follows the shape of NEWS but is not a certified implementation.
-- **Rate limiting is per-instance.** The in-memory limiter needs a shared store (Redis, Upstash) across multiple instances.
+- **No multi-factor authentication.** A stolen password is a full session. This is the largest security gap for a system holding clinical records.
+- **No break-glass workflow.** Emergency access to a patient outside your care is a real clinical need; here it is simply refused. `patient_access_grants` is where it would be built.
+- **No penetration test.** The security suite was written by the same person who wrote the code, which catches the mistakes that person can imagine. That is not the same as an adversary who does not share the assumptions.
+- **Rate limiting is per-instance** unless `REDIS_URL` is set — on *n* instances it lets through roughly *n* times the configured limit. `/api/health/db` reports which store is live.
+- **Load tested on one small shared machine.** ~35 req/s with the knee at ten concurrent sessions, on 2 vCPU running the app, the database and the load generator together. That shows concurrency degrades gracefully; it is **not** a capacity figure for any real deployment. See [docs/LOAD_TESTING.md](docs/LOAD_TESTING.md).
+- **Tables that only grow.** `timeline_events`, `audit_logs` and `notifications` have no retention or partitioning. Fine at 1.2m rows; not forever.
 - **Realtime is short-poll SSE.** Correct and portable, with roughly 2.5 s latency. Postgres `LISTEN/NOTIFY` or a hosted realtime service would be lower latency.
 - **File storage defaults to the database.** Portable and fine for documents; use object storage for imaging.
 - **No DICOM viewer.** Radiology holds orders, metadata and narrative reports. The schema separates metadata from bytes so a PACS integration only has to add a driver.
