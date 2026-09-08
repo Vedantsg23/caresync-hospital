@@ -253,6 +253,13 @@ async function main() {
       fullName: sp.fullName,
       primaryRole: sp.role,
       isActive: true,
+      // Seeded accounts are development fixtures, not registrations: they skip
+      // the verify-then-approve path so `npm run dev` is usable immediately.
+      // Production never runs this script — see README, "Deployment".
+      status: 'ACTIVE' as const,
+      emailVerifiedAt: daysAgo(30),
+      approvedAt: daysAgo(30),
+      passwordChangedAt: daysAgo(30),
       lastLoginAt: sp.demo ? hoursAgo(2 + Math.random() * 20) : hoursAgo(24 + Math.random() * 120),
     })),
   ).returning();

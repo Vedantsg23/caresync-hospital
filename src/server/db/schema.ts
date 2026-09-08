@@ -40,6 +40,22 @@ export const roleNameEnum = pgEnum('role_name', [
   'SUPER_ADMIN', 'HOSPITAL_ADMIN', 'SENIOR_DOCTOR', 'JUNIOR_DOCTOR',
   'NURSE', 'RADIOLOGY', 'PATHOLOGY', 'PHARMACY', 'HR_ADMIN',
 ]);
+
+/**
+ * Account lifecycle. Registration is self-service but privilege is not: a new
+ * clinical account lands in PENDING_APPROVAL and can do nothing until an
+ * administrator assigns its role and department. There is no path from the
+ * public registration form to a privileged role.
+ */
+export const accountStatusEnum = pgEnum('account_status', [
+  'PENDING_VERIFICATION', 'PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'SUSPENDED', 'DEACTIVATED',
+]);
+
+/** Single-use, hashed, expiring tokens. The plaintext never reaches the database. */
+export const tokenPurposeEnum = pgEnum('token_purpose', [
+  'EMAIL_VERIFICATION', 'PASSWORD_RESET', 'STAFF_INVITATION',
+]);
+
 export const genderEnum = pgEnum('gender', ['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']);
 export const bloodGroupEnum = pgEnum('blood_group', [
   'A_POSITIVE', 'A_NEGATIVE', 'B_POSITIVE', 'B_NEGATIVE',
@@ -112,12 +128,61 @@ export const users = pgTable('users', {
   failedLogins: integer('failed_logins').notNull().default(0),
   lockedUntil: ts('locked_until'),
   mustReset: boolean('must_reset').notNull().default(false),
+
+  /* --- production account lifecycle ------------------------------------ */
+  /** Where this account is in the registration -> approval -> active path. */
+  status: accountStatusEnum('status').notNull().default('ACTIVE'),
+  phone: text('phone'),
+  /** Set once the holder proves they control the address. Null = unverified. */
+  emailVerifiedAt: ts('email_verified_at'),
+  /** Who let this account into the hospital, and when. */
+  approvedById: uuid('approved_by_id'),
+  approvedAt: ts('approved_at'),
+  rejectionReason: text('rejection_reason'),
+  /** What the applicant asked to be. Never trusted as the granted role. */
+  requestedRole: roleNameEnum('requested_role'),
+  requestedDepartmentId: uuid('requested_department_id'),
+  /** Free-text professional detail supplied at registration, for the approver. */
+  registrationNote: text('registration_note'),
+  lastLoginIp: text('last_login_ip'),
+  passwordChangedAt: ts('password_changed_at'),
+
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('users_email_key').on(t.email),
   index('users_primary_role_idx').on(t.primaryRole),
   index('users_is_active_idx').on(t.isActive),
+  index('users_status_idx').on(t.status),
+  index('users_pending_approval_idx').on(t.status, t.createdAt),
+]);
+
+/**
+ * Email verification, password reset and staff invitations.
+ *
+ * Only a SHA-256 hash of the token is stored, so a database read cannot be
+ * replayed as a valid link. Tokens are single-use (`consumedAt`) and expire.
+ */
+export const verificationTokens = pgTable('verification_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  /** Invitations exist before any user row does, so the address is carried here. */
+  email: text('email').notNull(),
+  purpose: tokenPurposeEnum('purpose').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: ts('expires_at').notNull(),
+  consumedAt: ts('consumed_at'),
+  /** For invitations: the role and department the administrator is granting. */
+  invitedRole: roleNameEnum('invited_role'),
+  invitedDepartmentId: uuid('invited_department_id').references(() => departments.id),
+  createdById: uuid('created_by_id').references(() => users.id),
+  ipAddress: text('ip_address'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('verification_tokens_hash_key').on(t.tokenHash),
+  index('verification_tokens_lookup_idx').on(t.email, t.purpose, t.consumedAt),
+  index('verification_tokens_expiry_idx').on(t.expiresAt),
+  index('verification_tokens_user_idx').on(t.userId),
 ]);
 
 export const roles = pgTable('roles', {
@@ -163,10 +228,15 @@ export const sessions = pgTable('sessions', {
   lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
   expiresAt: ts('expires_at').notNull(),
   revokedAt: ts('revoked_at'),
+  /** Set when this session replaced an earlier one, so rotation is traceable. */
+  rotatedFromId: uuid('rotated_from_id'),
+  absoluteExpiresAt: ts('absolute_expires_at'),
 }, (t) => [
   uniqueIndex('sessions_token_id_key').on(t.tokenId),
   index('sessions_user_id_idx').on(t.userId),
   index('sessions_expires_at_idx').on(t.expiresAt),
+  // The hot path on every authenticated request: this user's live sessions.
+  index('sessions_active_idx').on(t.userId, t.revokedAt, t.expiresAt),
 ]);
 
 export const departments = pgTable('departments', {

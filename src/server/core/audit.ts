@@ -51,6 +51,22 @@ export const AUDIT = {
   FILE_DOWNLOADED: 'FILE_DOWNLOADED',
   MESSAGE_SENT: 'MESSAGE_SENT',
   AI_SUMMARY_GENERATED: 'AI_SUMMARY_GENERATED',
+  /* --- account lifecycle (production authentication) ------------------- */
+  REGISTRATION_SUBMITTED: 'REGISTRATION_SUBMITTED',
+  REGISTRATION_REJECTED: 'REGISTRATION_REJECTED',
+  REGISTRATION_DUPLICATE: 'REGISTRATION_DUPLICATE',
+  EMAIL_VERIFIED: 'EMAIL_VERIFIED',
+  ACCOUNT_APPROVED: 'ACCOUNT_APPROVED',
+  ACCOUNT_REJECTED: 'ACCOUNT_REJECTED',
+  INVITATION_SENT: 'INVITATION_SENT',
+  INVITATION_ACCEPTED: 'INVITATION_ACCEPTED',
+  PASSWORD_RESET_REQUESTED: 'PASSWORD_RESET_REQUESTED',
+  PASSWORD_RESET_COMPLETED: 'PASSWORD_RESET_COMPLETED',
+  PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  SESSION_ROTATED: 'SESSION_ROTATED',
+  LOGIN_BLOCKED: 'LOGIN_BLOCKED',
+  BOOTSTRAP_COMPLETED: 'BOOTSTRAP_COMPLETED',
+  BOOTSTRAP_REFUSED: 'BOOTSTRAP_REFUSED',
   ACCESS_GRANTED: 'ACCESS_GRANTED',
 } as const;
 
@@ -64,6 +80,12 @@ export type AuditInput = {
   outcome?: 'SUCCESS' | 'DENIED' | 'FAILURE';
   metadata?: Record<string, unknown> | null;
   actor?: Pick<AuthUser, 'id' | 'email' | 'role'> | null;
+  /**
+   * The acting user's id where the full actor is not to hand — account
+   * lifecycle events, for instance, often know the id and nothing else.
+   * `actor` wins when both are supplied.
+   */
+  userId?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
 };
@@ -76,7 +98,7 @@ export type AuditInput = {
 export async function recordAudit(input: AuditInput): Promise<void> {
   try {
     await db.insert(auditLogs).values({
-      userId: input.actor?.id ?? null,
+      userId: input.actor?.id ?? input.userId ?? null,
       actorEmail: input.actor?.email ?? null,
       actorRole: (input.actor?.role as Role | undefined) ?? null,
       action: input.action,

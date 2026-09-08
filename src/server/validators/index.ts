@@ -8,6 +8,96 @@ export const uuid = z.string().uuid('Must be a valid identifier');
 const nonEmpty = (label: string, max = 5000) =>
   z.string().trim().min(1, `${label} is required`).max(max, `${label} is too long`);
 
+/**
+ * Password policy, shared by every write path so the rules cannot drift between
+ * registration, reset and change.
+ */
+export const strongPassword = z.string()
+  .min(10, 'Password must be at least 10 characters')
+  .max(200, 'Password is too long')
+  .regex(/[a-z]/, 'Password must contain a lowercase letter')
+  .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+  .regex(/[0-9]/, 'Password must contain a number');
+
+const emailField = z.string().trim().toLowerCase().email('Enter a valid email address').max(254);
+
+/** Roles a person may ask for. Administrator roles are deliberately absent. */
+export const requestableRoleSchema = z.enum([
+  'SENIOR_DOCTOR', 'JUNIOR_DOCTOR', 'NURSE', 'RADIOLOGY', 'PATHOLOGY', 'PHARMACY', 'HR_ADMIN',
+]);
+
+export const registerSchema = z.object({
+  email: emailField,
+  fullName: nonEmpty('Full name', 160),
+  password: strongPassword,
+  confirmPassword: z.string(),
+  phone: z.string().trim().max(40).optional().or(z.literal('')),
+  requestedRole: requestableRoleSchema,
+  requestedDepartmentId: uuid.optional().or(z.literal('')),
+  registrationNote: z.string().trim().max(2000).optional().or(z.literal('')),
+}).refine((v) => v.password === v.confirmPassword, {
+  message: 'Passwords do not match', path: ['confirmPassword'],
+});
+
+export const tokenSchema = z.object({
+  token: z.string().min(20, 'This link is not valid').max(500),
+});
+
+export const forgotPasswordSchema = z.object({ email: emailField });
+
+export const resetPasswordWithTokenSchema = z.object({
+  token: z.string().min(20).max(500),
+  newPassword: strongPassword,
+  confirmPassword: z.string(),
+}).refine((v) => v.newPassword === v.confirmPassword, {
+  message: 'Passwords do not match', path: ['confirmPassword'],
+});
+
+export const resendVerificationSchema = z.object({ email: emailField });
+
+export const approveAccountSchema = z.object({
+  role: z.enum(ROLES),
+  departmentId: uuid.optional().or(z.literal('')),
+  designation: z.string().trim().max(120).optional(),
+  specialization: z.string().trim().max(120).optional(),
+  registrationNumber: z.string().trim().max(60).optional(),
+  acceptsReferrals: z.boolean().optional(),
+});
+
+export const rejectAccountSchema = z.object({
+  reason: nonEmpty('Reason', 1000),
+});
+
+export const inviteStaffSchema = z.object({
+  email: emailField,
+  role: z.enum(ROLES),
+  departmentId: uuid.optional().or(z.literal('')),
+});
+
+export const acceptInvitationSchema = z.object({
+  token: z.string().min(20).max(500),
+  fullName: nonEmpty('Full name', 160),
+  password: strongPassword,
+  confirmPassword: z.string(),
+  phone: z.string().trim().max(40).optional().or(z.literal('')),
+  designation: z.string().trim().max(120).optional(),
+}).refine((v) => v.password === v.confirmPassword, {
+  message: 'Passwords do not match', path: ['confirmPassword'],
+});
+
+export const bootstrapSchema = z.object({
+  token: z.string().min(24, 'Bootstrap token is required').max(500),
+  email: emailField,
+  fullName: nonEmpty('Full name', 160),
+  password: strongPassword,
+});
+
+/** Cursor pagination, shared by every large collection. */
+export const cursorPageSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().max(200).optional(),
+});
+
 /* --------------------------------------------------------------- auth --- */
 
 export const loginSchema = z.object({
@@ -17,7 +107,9 @@ export const loginSchema = z.object({
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(10, 'New password must be at least 10 characters').max(200),
+  newPassword: strongPassword,
+}).refine((v) => v.currentPassword !== v.newPassword, {
+  message: 'The new password must be different from the current one', path: ['newPassword'],
 });
 
 /* ------------------------------------------------------------ patients -- */

@@ -44,6 +44,8 @@ export async function login(
       fullName: users.fullName,
       role: users.primaryRole,
       isActive: users.isActive,
+      status: users.status,
+      emailVerifiedAt: users.emailVerifiedAt,
       failedLogins: users.failedLogins,
       lockedUntil: users.lockedUntil,
       staffNumber: staffProfiles.staffNumber,
@@ -79,6 +81,53 @@ export async function login(
 
   const valid = await verifyPassword(input.password, row.passwordHash);
 
+  /**
+   * A correct password is necessary but not sufficient. An account must also
+   * have finished the registration path: address verified, and an administrator
+   * having granted it a role. These states get their own messages because
+   * telling someone "your account is awaiting approval" is useful and leaks
+   * nothing they did not already know — they registered it themselves. The
+   * check runs only after the password verifies, so it cannot be used to probe
+   * for the existence or state of an account you do not hold the password to.
+   */
+  if (valid) {
+    if (row.status === 'PENDING_VERIFICATION' || !row.emailVerifiedAt) {
+      await recordAudit({
+        action: AUDIT.LOGIN_BLOCKED, entityType: 'user', entityId: row.id, outcome: 'DENIED',
+        actor: { id: row.id, email: row.email, role: row.role as Role },
+        metadata: { reason: 'EMAIL_NOT_VERIFIED' },
+        ipAddress: context.ipAddress, userAgent: context.userAgent,
+      });
+      throw new AppError(
+        'FORBIDDEN',
+        'Confirm your email address before signing in. Check your inbox for the confirmation link.',
+      );
+    }
+    if (row.status === 'PENDING_APPROVAL') {
+      await recordAudit({
+        action: AUDIT.LOGIN_BLOCKED, entityType: 'user', entityId: row.id, outcome: 'DENIED',
+        actor: { id: row.id, email: row.email, role: row.role as Role },
+        metadata: { reason: 'AWAITING_APPROVAL' },
+        ipAddress: context.ipAddress, userAgent: context.userAgent,
+      });
+      throw new AppError(
+        'FORBIDDEN',
+        'Your account is awaiting administrator approval. You will be emailed when it is granted.',
+      );
+    }
+    if (row.status === 'REJECTED' || row.status === 'SUSPENDED' || row.status === 'DEACTIVATED') {
+      await recordAudit({
+        action: AUDIT.LOGIN_BLOCKED, entityType: 'user', entityId: row.id, outcome: 'DENIED',
+        actor: { id: row.id, email: row.email, role: row.role as Role },
+        metadata: { reason: row.status },
+        ipAddress: context.ipAddress, userAgent: context.userAgent,
+      });
+      // Deliberately generic: a deactivated account should look the same as a
+      // wrong password to anyone who is not its owner.
+      throw genericFailure();
+    }
+  }
+
   if (!valid || !row.isActive) {
     const failed = row.failedLogins + 1;
     const shouldLock = failed >= MAX_FAILED_LOGINS;
@@ -105,7 +154,12 @@ export async function login(
   });
 
   await db.update(users)
-    .set({ lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null })
+    .set({
+      lastLoginAt: new Date(),
+      lastLoginIp: context.ipAddress ?? null,
+      failedLogins: 0,
+      lockedUntil: null,
+    })
     .where(eq(users.id, row.id));
 
   await recordAudit({
@@ -158,10 +212,15 @@ export async function changePassword(
   if (issues.length) throw new AppError('VALIDATION_ERROR', `The new password ${issues.join(', ')}.`);
 
   await db.update(users)
-    .set({ passwordHash: await hashPassword(input.newPassword), mustReset: false, updatedAt: new Date() })
+    .set({
+      passwordHash: await hashPassword(input.newPassword),
+      mustReset: false,
+      passwordChangedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(users.id, user.id));
 
   await revokeAllSessionsForUser(user.id);
 
-  await recordAudit({ action: AUDIT.PASSWORD_RESET, entityType: 'user', entityId: user.id, actor: user });
+  await recordAudit({ action: AUDIT.PASSWORD_CHANGED, entityType: 'user', entityId: user.id, actor: user });
 }

@@ -110,8 +110,23 @@ export async function createStaff(actor: AuthUser, input: CreateStaffInput) {
   const passwordHash = await hashPassword(input.password);
 
   const created = await db.transaction(async (tx) => {
+    // An administrator creating an account directly is the vouching step, so
+    // there is no verify-then-approve round: the account is usable at once.
+    // `mustReset` marks the administrator-chosen password as temporary — the
+    // holder is expected to replace it, and the UI prompts for that.
     const [user] = await tx.insert(users).values({
-      email, passwordHash, fullName: input.fullName, primaryRole: input.role, isActive: true,
+      email,
+      passwordHash,
+      fullName: input.fullName,
+      primaryRole: input.role,
+      isActive: true,
+      status: 'ACTIVE',
+      emailVerifiedAt: new Date(),
+      approvedById: actor.id,
+      approvedAt: new Date(),
+      passwordChangedAt: new Date(),
+      mustReset: true,
+      phone: input.phone ?? null,
     }).returning();
 
     await tx.insert(staffProfiles).values({

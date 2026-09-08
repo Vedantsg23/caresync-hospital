@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * Public. Rate limited per IP to blunt credential stuffing.
  */
 export const POST = publicRoute(async ({ req, ip, userAgent }) => {
-  const rl = rateLimit(`login:${ip}`, getEnv().RATE_LIMIT_LOGIN_PER_MIN);
+  const rl = await rateLimit(`login:${ip}`, getEnv().RATE_LIMIT_LOGIN_PER_MIN);
   if (!rl.allowed) {
     return fail('RATE_LIMITED', 'Too many sign-in attempts. Please wait a moment and try again.', 429, {
       retryAfterSeconds: rl.retryAfterSeconds,

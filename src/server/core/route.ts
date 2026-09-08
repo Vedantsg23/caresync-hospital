@@ -36,7 +36,7 @@ export function protectedRoute<P = Record<string, string>>(handler: Handler<P>, 
 
       const ip = clientIp(req.headers);
       const limit = options.limit ?? getEnv().RATE_LIMIT_API_PER_MIN;
-      const rl = rateLimit(`api:${user.id}:${req.nextUrl.pathname}`, limit);
+      const rl = await rateLimit(`api:${user.id}:${req.nextUrl.pathname}`, limit);
       if (!rl.allowed) {
         return fail('RATE_LIMITED', 'Too many requests. Please slow down.', 429, {
           retryAfterSeconds: rl.retryAfterSeconds,

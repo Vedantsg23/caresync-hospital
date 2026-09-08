@@ -25,6 +25,33 @@ const schema = z.object({
   SUPABASE_STORAGE_BUCKET: z.string().default('caresync-documents'),
   RATE_LIMIT_LOGIN_PER_MIN: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_API_PER_MIN: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_REGISTER_PER_HOUR: z.coerce.number().int().positive().default(5),
+  RATE_LIMIT_RESET_PER_HOUR: z.coerce.number().int().positive().default(5),
+
+  /* --- outbound email ------------------------------------------------- */
+  // `console` records messages instead of sending them, so verification and
+  // reset flows are fully exercisable before a provider is configured.
+  MAIL_DRIVER: z.enum(['console', 'resend', 'smtp']).default('console'),
+  MAIL_FROM: z.string().default('CareSync Hospital <no-reply@caresync.local>'),
+  RESEND_API_KEY: z.string().optional(),
+  SMTP_URL: z.string().optional(),
+
+  /* --- shared stores (horizontal scaling) ----------------------------- */
+  // Absent: rate limiting is per-instance and the deployment is single-instance.
+  // Present: limits are shared, and the app can be scaled out.
+  REDIS_URL: z.string().optional(),
+  REDIS_TOKEN: z.string().optional(),
+
+  /* --- first-administrator bootstrap ---------------------------------- */
+  // A production database starts empty, so there is no account to log in with.
+  // This one-time token lets the operator create the first administrator, and
+  // the endpoint refuses to run once any administrator exists.
+  BOOTSTRAP_TOKEN: z.string().min(24).optional(),
+
+  /** Absolute session lifetime; a session cannot be renewed past this. */
+  SESSION_ABSOLUTE_MAX_AGE: z.coerce.number().int().positive().default(604800),
+  /** Public origin, used to build links inside emails. */
+  APP_ORIGIN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

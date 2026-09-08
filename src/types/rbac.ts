@@ -54,6 +54,10 @@ export const PERMISSIONS = {
   USER_CREATE: 'user:create',
   USER_UPDATE: 'user:update',
   USER_ROLE_CHANGE: 'user:role_change',
+  /** Approve or reject a registration, and thereby grant a role. */
+  USER_APPROVE: 'user:approve',
+  /** Invite a colleague with a pre-assigned role. */
+  USER_INVITE: 'user:invite',
   DEPARTMENT_MANAGE: 'department:manage',
   AUDIT_READ: 'audit:read',
 } as const;
@@ -86,6 +90,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     P.WARD_MANAGE, P.CARETEAM_MANAGE, P.REFERRAL_MANAGE,
     P.ADMIN_DASHBOARD, P.USER_READ, P.USER_CREATE, P.USER_UPDATE,
     P.USER_ROLE_CHANGE, P.DEPARTMENT_MANAGE, P.AUDIT_READ,
+    P.USER_APPROVE, P.USER_INVITE,
   ],
 
   SENIOR_DOCTOR: [
@@ -124,6 +129,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     P.ADMIN_DASHBOARD, P.USER_READ, P.USER_CREATE, P.USER_UPDATE,
     P.USER_ROLE_CHANGE, P.DEPARTMENT_MANAGE, P.NOTIFICATION_READ,
     P.MESSAGE_READ, P.MESSAGE_SEND,
+    P.USER_APPROVE, P.USER_INVITE,
   ],
 };
 
