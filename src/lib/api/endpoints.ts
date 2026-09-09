@@ -52,6 +52,8 @@ export const authApi = {
 export const referenceApi = {
   publicDepartments: () =>
     api.get<{ id: string; name: string; code: string }[]>('/public/departments'),
+  /** Whether anybody has set this deployment up yet. One boolean, nothing else. */
+  setupStatus: () => api.get<{ initialised: boolean }>('/public/setup-status'),
 };
 
 export type PendingAccountDto = {

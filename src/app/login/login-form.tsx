@@ -4,18 +4,23 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogIn, ShieldCheck } from 'lucide-react';
-import { authApi } from '@/lib/api/endpoints';
+import { authApi, referenceApi } from '@/lib/api/endpoints';
 import { ApiError } from '@/lib/api/client';
 import { Button, Field, Input } from '@/components/ui';
 
 /**
- * Demonstration accounts — opt-IN, and off by default.
+ * Demonstration accounts — development only, and not configurable in production.
  *
- * This panel puts a shared password into the client bundle. That is acceptable
- * for a public showcase and unacceptable for a hospital, so production shows
- * nothing here unless an operator sets NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true on
- * purpose. The default used to be "on", which is the wrong way round for
- * software that is meant to be deployed for real.
+ * This panel puts a shared password into the client bundle and a list of
+ * pre-made identities onto the sign-in screen. Both are fine for a walkthrough
+ * on a laptop and neither belongs on the front door of a system that holds real
+ * records.
+ *
+ * It used to be governed by NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS alone. That is one
+ * stale variable in a hosting dashboard away from advertising credentials to
+ * every visitor — and the variable is baked in at build time, so the mistake
+ * survives until somebody notices and redeploys. The build now refuses to
+ * render it at all in production, whatever the variable says.
  */
 const DEMO_ACCOUNTS = [
   { email: 'doctor@caresync.demo', label: 'Senior Doctor', name: 'Dr. Aarav Sharma' },
@@ -35,8 +40,22 @@ export function LoginForm({ next }: { next?: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
-  const showDemo = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true';
+  // Both conditions are compile-time constants, so the whole panel — and the
+  // password with it — is eliminated from the production bundle rather than
+  // merely hidden in it.
+  const showDemo = process.env.NODE_ENV !== 'production'
+    && process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true';
   const demoPassword = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'CareSync#2026';
+
+  // An empty deployment has no administrator, so a sign-in form that cannot
+  // work and a registration nobody can approve are both correct and both look
+  // like faults. Say so instead.
+  const [needsSetup, setNeedsSetup] = React.useState(false);
+  React.useEffect(() => {
+    referenceApi.setupStatus()
+      .then(({ data }) => setNeedsSetup(!data.initialised))
+      .catch(() => setNeedsSetup(false));
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,6 +85,21 @@ export function LoginForm({ next }: { next?: string }) {
 
   return (
     <div className="space-y-space-6">
+      {needsSetup ? (
+        <div className="flex items-start gap-space-3 p-space-4 rounded-xl border border-outline-variant bg-surface-container-low">
+          <ShieldCheck className="h-5 w-5 mt-0.5 shrink-0 text-secondary" aria-hidden />
+          <div className="space-y-1">
+            <p className="text-body-md font-medium text-on-surface">This hospital has not been set up yet</p>
+            <p className="text-body-sm text-on-surface-variant">
+              There are no accounts on this deployment. The operator creates the first
+              administrator once, using the bootstrap token from the server
+              configuration; everybody else is invited or approved by a person after
+              that. Registrations submitted now will wait until an administrator exists.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <form onSubmit={submit} className="space-y-space-4" noValidate>
         {error ? (
           <div role="alert" className="flex items-start gap-space-3 p-space-3 rounded-lg bg-error-container text-on-error-container text-body-sm">
@@ -81,7 +115,7 @@ export function LoginForm({ next }: { next?: string }) {
             type="email"
             autoComplete="username"
             required
-            placeholder="you@caresync.demo"
+            placeholder="you@hospital.org"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             invalid={!!fieldErrors.email}
@@ -116,12 +150,20 @@ export function LoginForm({ next }: { next?: string }) {
           {loading ? 'Signing in' : 'Sign in'}
         </Button>
 
-        <p className="text-body-sm text-on-surface-variant text-center pt-space-1">
-          New to CareSync?{' '}
-          <Link href="/register" className="text-primary font-medium hover:underline">
-            Create an account
-          </Link>
-        </p>
+        <div className="text-center pt-space-1 space-y-1">
+          <p className="text-body-sm text-on-surface-variant">
+            New to CareSync?{' '}
+            <Link href="/register" className="text-primary font-medium hover:underline">
+              Create an account
+            </Link>
+          </p>
+          {/* The first question anybody has on a sign-in page they have not used
+              before is whether it is for them. Answer it here rather than making
+              them click through to find out. */}
+          <p className="text-label-md text-outline">
+            Doctors, nurses, radiology, pathology, pharmacy and staff administration.
+          </p>
+        </div>
       </form>
 
       {showDemo ? (

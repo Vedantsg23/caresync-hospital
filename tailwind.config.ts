@@ -72,12 +72,20 @@ const config: Config = {
         full: '9999px',
       },
       spacing: {
+        // A 4px scale. space-5 and space-10 were missing from it while 78
+        // classes across 17 files referenced them — Tailwind emits nothing for
+        // an undefined key and says nothing about it, so every `space-y-space-5`
+        // in the application silently collapsed to zero. On the registration
+        // form that combined with a negative margin and put a paragraph on top
+        // of the role selector. Add a key here before using it.
         'space-1': '0.25rem',
         'space-2': '0.5rem',
         'space-3': '0.75rem',
         'space-4': '1rem',
+        'space-5': '1.25rem',
         'space-6': '1.5rem',
         'space-8': '2rem',
+        'space-10': '2.5rem',
         'space-12': '3rem',
         gutter: '1rem',
         margin: '1.5rem',

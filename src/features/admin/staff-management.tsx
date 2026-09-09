@@ -209,7 +209,7 @@ function NewStaffModal({ open, onClose }: { open: boolean; onClose: () => void }
             <Input id="fullName" name="fullName" required placeholder="Dr. Priya Mehta" autoFocus invalid={!!issues.fullName} />
           </Field>
           <Field label="Email" htmlFor="email" required error={issues.email}>
-            <Input id="email" name="email" type="email" required placeholder="priya.mehta@caresync.demo" invalid={!!issues.email} />
+            <Input id="email" name="email" type="email" required placeholder="name@hospital.org" invalid={!!issues.email} />
           </Field>
         </div>
 

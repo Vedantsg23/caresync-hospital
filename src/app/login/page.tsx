@@ -58,8 +58,16 @@ export default async function LoginPage({
           </ul>
         </div>
 
+        {/*
+          The footer used to read "Demonstration environment. Contains no real
+          patient information." That was true of a seeded demo and is a lie on a
+          deployment people actually use — and the wrong lie, because it invites
+          someone to treat a real record casually. It now says what is true of
+          every deployment: this handles clinical information and every access is
+          recorded.
+        */}
         <p className="relative z-10 text-label-md text-on-primary-container">
-          Demonstration environment. Contains no real patient information.
+          Handles sensitive clinical information. Every access is recorded.
         </p>
       </section>
 
