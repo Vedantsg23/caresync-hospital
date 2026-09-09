@@ -21,6 +21,35 @@ export function fail(code: string, message: string, status: number, details?: un
   return NextResponse.json<ApiFailure>({ success: false, error: { code, message, ...(details ? { details } : {}) } }, { status });
 }
 
+type PostgresError = { code?: string; message?: string; constraint?: string };
+
+/**
+ * Finds the PostgreSQL error inside whatever wrapped it.
+ *
+ * Drizzle does not rethrow the driver's error; it throws its own with the
+ * original on `cause`, so `err.code` is undefined and every check below it
+ * silently failed to match. That is how a malformed id in a URL became a 500
+ * — and, less visibly, how a duplicate-key violation did too, because the
+ * mapping to 409 never fired either.
+ *
+ * The unit tests never saw it: they call services directly, so nothing they do
+ * passes through this function. It took driving the running application to
+ * find, which is the argument for doing that.
+ *
+ * Walks the cause chain rather than checking one level, because a wrapper today
+ * is two wrappers after an upgrade.
+ */
+function postgresErrorOf(err: unknown): PostgresError {
+  let cur = err as (PostgresError & { cause?: unknown }) | undefined;
+  for (let depth = 0; cur && depth < 5; depth++) {
+    // Postgres codes are five characters — '23505', '22P02'. Anything else on a
+    // `code` field belongs to some other library.
+    if (typeof cur.code === 'string' && /^[0-9A-Z]{5}$/.test(cur.code)) return cur;
+    cur = cur.cause as typeof cur;
+  }
+  return {};
+}
+
 /** Normalises anything thrown inside a route handler into the error envelope. */
 export function toErrorResponse(err: unknown, log: Pick<RequestLogger, 'warn' | 'error'> = logger) {
   if (err instanceof AppError) {
@@ -49,7 +78,7 @@ export function toErrorResponse(err: unknown, log: Pick<RequestLogger, 'warn' | 
     return fail('VALIDATION_ERROR', 'The submitted data is not valid.', 422, formatZodIssues(err));
   }
   // Postgres error codes surfaced by the referral state-machine guard etc.
-  const pg = err as { code?: string; message?: string; constraint?: string };
+  const pg = postgresErrorOf(err);
   if (pg?.code === '23505') {
     log.warn('constraint_violation', { code: '23505' });
     return fail('DUPLICATE_RESOURCE', 'A record with these details already exists.', 409);
@@ -61,6 +90,19 @@ export function toErrorResponse(err: unknown, log: Pick<RequestLogger, 'warn' | 
   if (pg?.code === '23514' && pg.message?.includes('referral transition')) {
     log.warn('constraint_violation', { code: '23514' });
     return fail('INVALID_STATE_TRANSITION', pg.message, 409);
+  }
+  // 22P02 — invalid_text_representation. Almost always a malformed identifier
+  // in a URL: /api/patients/not-a-uuid reaches Postgres, which refuses to cast
+  // it, and the whole thing used to surface as a 500.
+  //
+  // Three things were wrong with that. It reported a client mistake as a server
+  // fault. It wrote an `unhandled_error` line for input a scanner produces by
+  // the thousand, which is how real incidents get buried. And it gave a
+  // malformed id a different shape of response from a well-formed one the
+  // caller may not have, which is a small distinction an attacker can measure.
+  if (pg?.code === '22P02') {
+    log.warn('malformed_identifier', { code: '22P02' });
+    return fail('VALIDATION_ERROR', 'That identifier is not valid.', 422);
   }
   // Genuinely unexpected. The message and stack are ours, not the patient's,
   // and without them a 500 is unactionable.
