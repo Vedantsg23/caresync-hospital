@@ -108,6 +108,9 @@ export async function middleware(req: NextRequest) {
   const forward = () => NextResponse.next({ request: { headers: requestHeaders } });
 
   if (
+    // The landing page. Signed-in visitors are sent on to their role's home by
+    // the page itself, which re-validates the session against the database.
+    pathname === '/' ||
     PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||

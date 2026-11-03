@@ -37,7 +37,7 @@ this system could face anything other than invented data.
 
 ## Third-party components
 
-The typefaces bundled in `src/app/fonts/` — Inter and JetBrains Mono — are
+The typefaces bundled in `src/app/fonts/` — Inter, Host Grotesk and JetBrains Mono — are
 distributed under the SIL Open Font License 1.1. The full licence text for each
 sits beside the font file it covers. They are served from this application's own
 origin rather than a font CDN, so no page view is reported to a third party.

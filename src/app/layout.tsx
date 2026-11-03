@@ -29,6 +29,20 @@ const inter = localFont({
   fallback: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
 });
 
+/**
+ * Host Grotesk, the display face of the public pages (the landing page and the
+ * panel beside sign-in and registration). Same rules as the other two faces: the
+ * upstream variable font from Fontsource, latin subset, served from this origin.
+ */
+const hostGrotesk = localFont({
+  src: './fonts/host-grotesk-variable.woff2',
+  weight: '300 800',
+  style: 'normal',
+  variable: '--font-display',
+  display: 'swap',
+  fallback: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+});
+
 const jetbrainsMono = localFont({
   src: './fonts/jetbrains-mono-variable.woff2',
   weight: '100 800',
@@ -56,7 +70,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${hostGrotesk.variable} ${jetbrainsMono.variable}`}>
       <body>
         <Providers>{children}</Providers>
       </body>

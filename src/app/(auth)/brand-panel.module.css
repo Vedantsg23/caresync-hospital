@@ -1,0 +1,80 @@
+.panel {
+  isolation: isolate;
+  padding: 44px 48px;
+  background: #040706;
+  color: #f2f6f4;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+.glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(55% 45% at 100% 0%, #3a72ff 0%, rgba(58, 114, 255, 0) 72%),
+    radial-gradient(60% 50% at 0% 100%, #74f7cc 0%, rgba(116, 247, 204, 0) 70%),
+    radial-gradient(110% 90% at 45% 55%, #0aa597 0%, #087a72 40%, #05302d 72%, #040706 100%);
+}
+.wordmark,
+.mobileMark {
+  align-self: flex-start;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+.wordmark b,
+.mobileMark b {
+  font-weight: 600;
+}
+.mobileMark {
+  display: inline-block;
+  margin-bottom: 2rem;
+  color: #131b2e;
+}
+@media (min-width: 1024px) {
+  .mobileMark {
+    display: none;
+  }
+}
+.copy {
+  display: grid;
+  gap: 22px;
+  max-width: 34rem;
+}
+.heading {
+  font-size: clamp(44px, 4.4vw, 64px);
+  line-height: 1.06;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+.body {
+  max-width: 44ch;
+  font-size: 16px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+}
+.points {
+  display: grid;
+  gap: 10px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.points li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.points li::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6ffbbe;
+  box-shadow: 0 0 0 4px rgba(111, 251, 190, 0.18);
+}
+.foot {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}

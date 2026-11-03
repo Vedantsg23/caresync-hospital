@@ -18,6 +18,9 @@ never have to ask *"where is the information?"*
 
 ### ▶ [**caresync-hospital.vercel.app**](https://caresync-hospital.vercel.app)
 
+Signed-out visitors land on a page that explains the system — every department on one
+record, the nine roles and the safeguards — before they sign in or request access.
+
 **That deployment starts empty, on purpose.** There are no demo accounts on it and
 no shared password — an account exists there because a person asked for one and an
 administrator granted it. Registration is self-service; privilege never is.
@@ -218,6 +221,8 @@ PostgreSQL                                 40 tables · RLS policies
 src/
   app/
     (app)/                 authenticated shell + pages
+    (auth)/                registration, verification, password reset, shared brand panel
+    _landing/              the public landing page at "/" (signed-out visitors only)
     api/                   71 REST route handlers
     login/                 public sign-in
   components/
